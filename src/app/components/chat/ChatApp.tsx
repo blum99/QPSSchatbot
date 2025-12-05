@@ -8,44 +8,33 @@ import { Conversation, Message } from "./types";
 
 const qpssIconSrc = "/chat/qpss-icon.png";
 
-const initialMessages: Message[] = [
-  {
-    id: "1",
-    text: "Hello! I'm your AI assistant. How can I help you today?",
-    sender: "bot",
-    timestamp: new Date("2024-01-01T07:46:00Z"),
-  },
-  {
-    id: "2",
-    text: "Hi! I'd like to know more about your capabilities.",
-    sender: "user",
-    timestamp: new Date("2024-01-01T07:47:00Z"),
-  },
-  {
-    id: "3",
-    text: "I can assist you with a wide range of tasks including answering questions, providing information, helping with problem-solving, and having natural conversations. What would you like to explore?",
-    sender: "bot",
-    timestamp: new Date("2024-01-01T07:48:00Z"),
-  },
-];
+const INITIAL_CONVERSATION_ID = "conversation-initial";
+const INITIAL_TIMESTAMP = new Date("2024-01-01T07:46:00Z");
 
 interface ConversationData {
   [key: string]: Message[];
 }
 
+const INITIAL_WELCOME_MESSAGE: Message = {
+  id: `${INITIAL_CONVERSATION_ID}-welcome`,
+  text: "Hello! I'm your AI assistant. How can I help you today?",
+  sender: "bot",
+  timestamp: INITIAL_TIMESTAMP,
+};
+
 export function ChatApp() {
   const [conversations, setConversations] = useState<Conversation[]>([
     {
-      id: "1",
-      title: "Getting Started",
-      lastMessage: "I can assist you with a wide range of tasks...",
-      timestamp: new Date("2024-01-01T07:48:00Z"),
+      id: INITIAL_CONVERSATION_ID,
+      title: "New Conversation",
+      lastMessage: "Hello! I'm your AI assistant...",
+      timestamp: INITIAL_TIMESTAMP,
       threadId: undefined,
     },
   ]);
-  const [activeConversationId, setActiveConversationId] = useState("1");
+  const [activeConversationId, setActiveConversationId] = useState(INITIAL_CONVERSATION_ID);
   const [conversationData, setConversationData] = useState<ConversationData>({
-    "1": initialMessages,
+    [INITIAL_CONVERSATION_ID]: [INITIAL_WELCOME_MESSAGE],
   });
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
