@@ -1,7 +1,7 @@
 
-  # Modern Chatbot Frontend
+  # QPSSchatbot Frontend
 
-  This is a code bundle for Modern Chatbot Frontend. The original project is available at https://www.figma.com/design/aCAkTAwP5cG7gPkzar04ta/Modern-Chatbot-Frontend.
+  This bundle backs the QPSSchatbot project. It was adapted from the Modern Chatbot Frontend design available at https://www.figma.com/design/aCAkTAwP5cG7gPkzar04ta/Modern-Chatbot-Frontend.
 
   ## Running the code
 
