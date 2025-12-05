@@ -1,6 +1,7 @@
 // src/app/api/chat/route.ts
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { assistantConfig, manualFunctionTools } from "@/config/assistant";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -22,48 +23,7 @@ const TERMINAL_STATUSES = new Set([
   "expired",
 ]);
 
-const MANUAL_FUNCTION_TOOLS = [
-  {
-    type: "function" as const,
-    function: {
-      name: "searchPensionsManual",
-      description:
-        "Query the official ILO/PENSIONS User Manual for authoritative guidance. Always provide the user's full question rewritten as concise keywords.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description:
-              "Concise, keyword-rich version of the user's question for searching the ILO/PENSIONS manual.",
-          },
-        },
-        required: ["query"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "searchHealthManual",
-      description:
-        "Query the official ILO/HEALTH User Manual for authoritative guidance. Always provide the user's full question rewritten as concise keywords.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description:
-              "Concise, keyword-rich version of the user's question for searching the ILO/HEALTH manual.",
-          },
-        },
-        required: ["query"],
-      },
-    },
-  },
-];
-
-let manualToolsEnsured = false;
+let assistantSetupEnsured = false;
 
 export async function POST(req: NextRequest) {
   try {
@@ -81,7 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await ensureManualFunctionTools(process.env.OPENAI_ASSISTANT_ID);
+    await ensureAssistantConfiguration(process.env.OPENAI_ASSISTANT_ID);
 
     const { threadId: existingThreadId, message } = await req.json();
 
@@ -246,32 +206,123 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function ensureManualFunctionTools(assistantId: string) {
-  if (manualToolsEnsured) {
+async function ensureAssistantConfiguration(assistantId: string) {
+  if (assistantSetupEnsured) {
     return;
   }
 
   const assistant = await openai.beta.assistants.retrieve(assistantId);
-  const existingTools = assistant.tools || [];
-  const existingFunctionNames = new Set(
-    existingTools
-      .filter((tool: any) => tool.type === "function" && tool.function?.name)
-      .map((tool: any) => tool.function.name as string)
-  );
+  const updatePayload: Record<string, any> = {};
 
-  const missingTools = MANUAL_FUNCTION_TOOLS.filter(
-    (tool) => !existingFunctionNames.has(tool.function.name)
-  );
-
-  if (missingTools.length === 0) {
-    manualToolsEnsured = true;
-    return;
+  if (assistantConfig.name && assistant.name !== assistantConfig.name) {
+    updatePayload.name = assistantConfig.name;
   }
 
-  const updatedTools = [...existingTools, ...missingTools];
-  await openai.beta.assistants.update(assistantId, {
-    tools: updatedTools,
+  if (
+    assistantConfig.description &&
+    assistant.description !== assistantConfig.description
+  ) {
+    updatePayload.description = assistantConfig.description;
+  }
+
+  if (assistantConfig.instructions && assistant.instructions !== assistantConfig.instructions) {
+    updatePayload.instructions = assistantConfig.instructions;
+  }
+
+  if (assistantConfig.model && assistant.model !== assistantConfig.model) {
+    updatePayload.model = assistantConfig.model;
+  }
+
+  const currentTemperature =
+    typeof assistant.temperature === "number" ? assistant.temperature : undefined;
+  if (
+    typeof assistantConfig.temperature === "number" &&
+    assistantConfig.temperature !== currentTemperature
+  ) {
+    updatePayload.temperature = assistantConfig.temperature;
+  }
+
+  const currentTopP = typeof assistant.top_p === "number" ? assistant.top_p : undefined;
+  if (typeof assistantConfig.top_p === "number" && assistantConfig.top_p !== currentTopP) {
+    updatePayload.top_p = assistantConfig.top_p;
+  }
+
+  const currentMetadata = assistant.metadata ?? {};
+  if (
+    assistantConfig.metadata &&
+    JSON.stringify(currentMetadata) !== JSON.stringify(assistantConfig.metadata)
+  ) {
+    updatePayload.metadata = assistantConfig.metadata;
+  }
+
+  if (
+    assistantConfig.response_format &&
+    JSON.stringify(assistant.response_format ?? {}) !==
+      JSON.stringify(assistantConfig.response_format)
+  ) {
+    updatePayload.response_format = assistantConfig.response_format;
+  }
+
+  const existingTools = assistant.tools || [];
+  const manualToolNames = new Set(
+    manualFunctionTools.map((tool) => tool.function.name)
+  );
+  const manualToolsOutOfSync = manualFunctionTools.some((tool) => {
+    const matchingTool = existingTools.find(
+      (existingTool: any) =>
+        existingTool.type === "function" &&
+        existingTool.function?.name === tool.function.name
+    );
+
+    if (!matchingTool) {
+      return true;
+    }
+
+    return !manualFunctionDefinitionMatches(matchingTool, tool);
   });
 
-  manualToolsEnsured = true;
+  if (manualToolsOutOfSync) {
+    const preservedTools = existingTools.filter(
+      (tool: any) =>
+        !(
+          tool.type === "function" &&
+          tool.function?.name &&
+          manualToolNames.has(tool.function.name)
+        )
+    );
+
+    updatePayload.tools = [...preservedTools, ...manualFunctionTools];
+  }
+
+  if (Object.keys(updatePayload).length > 0) {
+    await openai.beta.assistants.update(assistantId, updatePayload);
+  }
+
+  assistantSetupEnsured = true;
+}
+
+type ManualFunctionTool = (typeof manualFunctionTools)[number];
+
+function manualFunctionDefinitionMatches(
+  existingTool: any,
+  desiredTool: ManualFunctionTool
+) {
+  if (existingTool.type !== "function" || !existingTool.function) {
+    return false;
+  }
+
+  if (existingTool.function.name !== desiredTool.function.name) {
+    return false;
+  }
+
+  const normalize = (fn: any) => ({
+    name: fn?.name,
+    description: fn?.description,
+    parameters: fn?.parameters,
+  });
+
+  return (
+    JSON.stringify(normalize(existingTool.function)) ===
+    JSON.stringify(normalize(desiredTool.function))
+  );
 }
