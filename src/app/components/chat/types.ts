@@ -12,4 +12,5 @@ export interface Conversation {
   title: string;
   lastMessage: string;
   timestamp: Date;
+  threadId?: string;
 }

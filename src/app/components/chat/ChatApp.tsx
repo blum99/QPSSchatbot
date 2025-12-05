@@ -40,6 +40,7 @@ export function ChatApp() {
       title: "Getting Started",
       lastMessage: "I can assist you with a wide range of tasks...",
       timestamp: new Date("2024-01-01T07:48:00Z"),
+      threadId: undefined,
     },
   ]);
   const [activeConversationId, setActiveConversationId] = useState("1");
@@ -50,9 +51,17 @@ export function ChatApp() {
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [assistantError, setAssistantError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeMessages = conversationData[activeConversationId] || [];
+
+  const truncatePreview = (text: string, maxLength = 50) => {
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return `${text.substring(0, maxLength)}...`;
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -62,28 +71,39 @@ export function ChatApp() {
     scrollToBottom();
   }, [activeMessages, isTyping]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  const handleSend = async () => {
+    const trimmedInput = inputValue.trim();
+    if (!trimmedInput || isTyping) {
+      return;
+    }
 
+    const targetConversationId = activeConversationId;
+    const currentConversation = conversations.find((conv) => conv.id === targetConversationId);
+    const timestamp = new Date();
     const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputValue,
+      id: `${Date.now()}`,
+      text: trimmedInput,
       sender: "user",
-      timestamp: new Date(),
+      timestamp,
     };
 
+    setAssistantError(null);
     setConversationData((prev) => ({
       ...prev,
-      [activeConversationId]: [...(prev[activeConversationId] || []), userMessage],
+      [targetConversationId]: [...(prev[targetConversationId] || []), userMessage],
     }));
 
     setConversations((prev) =>
       prev.map((conv) =>
-        conv.id === activeConversationId
+        conv.id === targetConversationId
           ? {
               ...conv,
-              lastMessage: inputValue.substring(0, 50) + (inputValue.length > 50 ? "..." : ""),
-              timestamp: new Date(),
+              title:
+                conv.title === "New Conversation"
+                  ? truncatePreview(trimmedInput, 30)
+                  : conv.title,
+              lastMessage: truncatePreview(trimmedInput),
+              timestamp,
             }
           : conv
       )
@@ -92,40 +112,65 @@ export function ChatApp() {
     setInputValue("");
     setIsTyping(true);
 
-    // Demo typing indicator; real backend hookup will replace this.
-    setTimeout(() => {
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "Thanks for your message! This is a demo response. In a real application, this would be connected to an AI backend.",
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: trimmedInput,
+          threadId: currentConversation?.threadId,
+        }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as {
+        threadId?: string;
+        reply?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Assistant response failed");
+      }
+      const assistantMessage: Message = {
+        id: `${Date.now()}-bot`,
+        text: data.reply || "", // fallback to empty string to avoid undefined UI state
         sender: "bot",
         timestamp: new Date(),
       };
 
       setConversationData((prev) => ({
         ...prev,
-        [activeConversationId]: [...(prev[activeConversationId] || []), botMessage],
+        [targetConversationId]: [...(prev[targetConversationId] || []), assistantMessage],
       }));
 
       setConversations((prev) =>
         prev.map((conv) =>
-          conv.id === activeConversationId
+          conv.id === targetConversationId
             ? {
                 ...conv,
-                lastMessage: botMessage.text.substring(0, 50) + "...",
-                timestamp: new Date(),
+                threadId: data.threadId ?? conv.threadId,
+                lastMessage: truncatePreview(assistantMessage.text),
+                timestamp: assistantMessage.timestamp,
               }
             : conv
         )
       );
-
+    } catch (error) {
+      console.error("Failed to send message", error);
+      setAssistantError(
+        error instanceof Error ? error.message : "Unexpected error sending message"
+      );
+    } finally {
       setIsTyping(false);
-    }, 1000 + Math.random() * 1000);
+    }
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -144,6 +189,7 @@ export function ChatApp() {
         title: "New Conversation",
         lastMessage: "Hello! I'm your AI assistant...",
         timestamp: new Date(),
+        threadId: undefined,
       },
       ...prev,
     ]);
@@ -159,6 +205,7 @@ export function ChatApp() {
 
   const handleSelectConversation = (id: string) => {
     setActiveConversationId(id);
+    setAssistantError(null);
     setIsTyping(false);
   };
 
@@ -167,19 +214,18 @@ export function ChatApp() {
       handleNewConversation();
     }
 
-    setConversations((prev) => prev.filter((conv) => conv.id !== id));
+    setConversations((prev) => {
+      const updated = prev.filter((conv) => conv.id !== id);
+      if (activeConversationId === id && updated.length > 0) {
+        setActiveConversationId(updated[0].id);
+      }
+      return updated;
+    });
     setConversationData((prev) => {
       const newData = { ...prev };
       delete newData[id];
       return newData;
     });
-
-    if (activeConversationId === id) {
-      const remainingConvs = conversations.filter((conv) => conv.id !== id);
-      if (remainingConvs.length > 0) {
-        setActiveConversationId(remainingConvs[0].id);
-      }
-    }
   };
 
   return (
@@ -257,13 +303,18 @@ export function ChatApp() {
                 className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition-all placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:border-blue-400 dark:focus:ring-blue-800"
               />
               <button
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-500 dark:hover:bg-blue-600"
+                onClick={() => void handleSend()}
+                disabled={!inputValue.trim() || isTyping}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
               >
                 <Send className="h-5 w-5" />
               </button>
             </div>
+            {assistantError && (
+              <p className="mx-auto mt-2 max-w-4xl text-sm text-red-600 dark:text-red-400">
+                {assistantError}
+              </p>
+            )}
           </div>
         </div>
       </div>
