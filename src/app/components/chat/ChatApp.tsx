@@ -11,40 +11,6 @@ const qpssIconSrc = "/chat/qpss-icon.png";
 const INITIAL_CONVERSATION_ID = "conversation-initial";
 const INITIAL_TIMESTAMP = new Date("2024-01-01T07:46:00Z");
 
-const CLARIFICATION_PROMPT =
-  "Please let me know whether this question is about ILO/PENSIONS or ILO/HEALTH so I can pull the correct manual.";
-
-const formatToolLabel = (tool: ToolTarget) =>
-  tool === "pensions" ? "ILO/PENSIONS" : tool === "health" ? "ILO/HEALTH" : "";
-
-type ToolTarget = "pensions" | "health" | null;
-
-const PENSIONS_REGEX = /\b(ilo[\s/-]?pensions?|pension(?:s)?|pension\s+module)\b/i;
-const HEALTH_REGEX = /\b(ilo[\s/-]?health|health(?:\s+module)?)\b/i;
-
-const determineToolTarget = (text: string): ToolTarget => {
-  if (!text) {
-    return null;
-  }
-
-  const mentionsPensions = PENSIONS_REGEX.test(text);
-  const mentionsHealth = HEALTH_REGEX.test(text);
-
-  if (mentionsPensions && mentionsHealth) {
-    return null;
-  }
-
-  if (mentionsPensions) {
-    return "pensions";
-  }
-
-  if (mentionsHealth) {
-    return "health";
-  }
-
-  return null;
-};
-
 interface ConversationData {
   [key: string]: Message[];
 }
@@ -69,9 +35,6 @@ export function ChatApp() {
   const [activeConversationId, setActiveConversationId] = useState(INITIAL_CONVERSATION_ID);
   const [conversationData, setConversationData] = useState<ConversationData>({
     [INITIAL_CONVERSATION_ID]: [INITIAL_WELCOME_MESSAGE],
-  });
-  const [pendingToolContext, setPendingToolContext] = useState<Record<string, string | undefined>>({
-    [INITIAL_CONVERSATION_ID]: undefined,
   });
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -105,8 +68,6 @@ export function ChatApp() {
 
     const targetConversationId = activeConversationId;
     const currentConversation = conversations.find((conv) => conv.id === targetConversationId);
-    const toolTarget = determineToolTarget(trimmedInput);
-    const pendingQuestion = pendingToolContext[targetConversationId];
     const timestamp = new Date();
     const userMessage: Message = {
       id: `${Date.now()}`,
@@ -139,59 +100,6 @@ export function ChatApp() {
 
     setInputValue("");
 
-    const addClarificationPrompt = () => {
-      const clarificationMessage: Message = {
-        id: `${Date.now()}-clarify`,
-        text: CLARIFICATION_PROMPT,
-        sender: "bot",
-        timestamp: new Date(),
-      };
-
-      setConversationData((prev) => ({
-        ...prev,
-        [targetConversationId]: [...(prev[targetConversationId] || []), clarificationMessage],
-      }));
-
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === targetConversationId
-            ? {
-                ...conv,
-                lastMessage: truncatePreview(clarificationMessage.text),
-                timestamp: clarificationMessage.timestamp,
-              }
-            : conv
-        )
-      );
-    };
-
-    let messageForAssistant = trimmedInput;
-
-    if (pendingQuestion) {
-      if (!toolTarget) {
-        addClarificationPrompt();
-        return;
-      }
-
-      messageForAssistant = `${pendingQuestion}\n\nContext: user confirmed this is about ${formatToolLabel(toolTarget)}.`;
-      setPendingToolContext((prev) => ({
-        ...prev,
-        [targetConversationId]: undefined,
-      }));
-    } else if (!toolTarget) {
-      setPendingToolContext((prev) => ({
-        ...prev,
-        [targetConversationId]: trimmedInput,
-      }));
-      addClarificationPrompt();
-      return;
-    }
-
-    setPendingToolContext((prev) => ({
-      ...prev,
-      [targetConversationId]: undefined,
-    }));
-
     setIsTyping(true);
 
     try {
@@ -201,7 +109,7 @@ export function ChatApp() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: messageForAssistant,
+          message: trimmedInput,
           threadId: currentConversation?.threadId,
         }),
       });
@@ -281,11 +189,6 @@ export function ChatApp() {
       [newId]: [welcomeMessage],
     }));
 
-    setPendingToolContext((prev) => ({
-      ...prev,
-      [newId]: undefined,
-    }));
-
     setActiveConversationId(newId);
     setIsTyping(false);
   };
@@ -314,11 +217,6 @@ export function ChatApp() {
       return newData;
     });
 
-    setPendingToolContext((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
   };
 
   return (
