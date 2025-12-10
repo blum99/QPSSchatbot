@@ -243,12 +243,11 @@ export function ChatApp() {
   };
 
   return (
-    <div className={`flex h-screen ${theme === "dark" ? "dark" : ""}`}>
-      <div className="flex h-screen w-full bg-white dark:bg-gray-900">
-        {/* Sidebar */}
-        <div
-          className={`${sidebarOpen ? "w-56" : "w-0"} transition-all duration-300 overflow-hidden`}
-        >
+    <div className={`flex h-screen w-full bg-white dark:bg-gray-900 ${theme === "dark" ? "dark" : ""}`}>
+      {/* Sidebar */}
+      <div
+        className={`${sidebarOpen ? "w-56" : "w-0"} transition-all duration-300 overflow-hidden`}
+      >
           <ConversationSidebar
             conversations={conversations}
             activeConversationId={activeConversationId}
@@ -449,7 +448,6 @@ export function ChatApp() {
             <DocumentsContacts theme={theme} />
           )}
         </div>
-      </div>
     </div>
   );
 }
