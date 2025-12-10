@@ -3,10 +3,11 @@
 import { ChatApp as ChatAppV1 } from "./components/chat/ChatApp-v1";
 import { ChatApp as ChatAppV2 } from "./components/chat/ChatApp-v2";
 
-// Select version from environment variable or default to v2
-const FRONTEND_VERSION = process.env.NEXT_PUBLIC_FRONTEND_VERSION || 'v2';
-
 export default function Home() {
+  // Select version from environment variable or default to v2
+  // Read inside component to avoid hydration mismatch
+  const FRONTEND_VERSION = process.env.NEXT_PUBLIC_FRONTEND_VERSION || 'v2';
+  
   // Version selector
   const versions = {
     v1: ChatAppV1,
