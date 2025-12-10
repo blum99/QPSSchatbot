@@ -448,7 +448,6 @@ export function ChatApp() {
           ) : (
             <DocumentsContacts theme={theme} />
           )}
-          </div>
         </div>
       </div>
     </div>
