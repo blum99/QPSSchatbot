@@ -341,7 +341,7 @@ export function ChatApp() {
                     <User className="h-4 w-4" />
                   </div>
                   <span className="text-sm text-gray-900 dark:text-gray-100">{userName}</span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-4 w-4 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
                 </button>
                 {userMenuOpen && (
                   <div className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
