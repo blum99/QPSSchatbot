@@ -1,7 +1,12 @@
-import { User } from "lucide-react";
-import { Message } from "./types";
+import { Bot, User } from "lucide-react";
+import qpssIcon from "figma:asset/418f386bbd86f225babc6970a8e76c3523f173c9.png";
 
-const qpssIconSrc = "/chat/qpss-icon.png";
+export interface Message {
+  id: string;
+  text: string;
+  sender: "user" | "bot";
+  timestamp: Date;
+}
 
 interface ChatMessageProps {
   message: Message;
@@ -18,7 +23,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         }`}
       >
         {isBot ? (
-          <img src={qpssIconSrc} alt="QPSS" className="h-8 w-8 object-contain" />
+          <img src={qpssIcon} alt="QPSS" className="h-8 w-8 object-contain" />
         ) : (
           <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
         )}
