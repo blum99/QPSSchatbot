@@ -1,20 +1,17 @@
 // src/app/api/chat/route.ts
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
-import { assistantConfig, manualFunctionTools } from "@/config/assistant";
+import { vectorStoreIds } from "@/config/assistant";
+import {
+  ensureAssistantConfiguration,
+  type AssistantSyncMode,
+} from "@/lib/assistantSync";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   organization: process.env.OPENAI_ORGANIZATION,
   project: process.env.OPENAI_PROJECT,
 });
-
-const OPENAI_API_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
-
-const ACTION_ENDPOINTS: Record<string, string> = {
-  searchPensionsManual: "/vector_stores/vs_68df753c6f8c819199f785d76313f15a/search",
-  searchHealthManual: "/vector_stores/vs_68df753edaf0819185c0e8f7c823b02a/search",
-};
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -23,7 +20,14 @@ const TERMINAL_STATUSES = new Set([
   "expired",
 ]);
 
-let assistantSetupEnsured = false;
+const assistantSyncMode = resolveAssistantSyncMode(
+  process.env.OPENAI_ASSISTANT_SYNC_MODE
+);
+const threadManualMemory = new Map<string, ManualKey>();
+const manualSelectionPrompt =
+  "The backend could not determine whether this conversation is about ILO/PENSIONS or ILO/HEALTH. Ask the user to clarify before calling File Search. Do not run File Search until the correct manual is confirmed.";
+let assistantSetupPromise: Promise<void> | null = null;
+let manualSyncModeLogged = false;
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,7 +45,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await ensureAssistantConfiguration(process.env.OPENAI_ASSISTANT_ID);
+    const assistantId = process.env.OPENAI_ASSISTANT_ID;
+
+    await ensureAssistantReady(assistantId);
 
     const { threadId: existingThreadId, message } = await req.json();
 
@@ -59,12 +65,20 @@ export async function POST(req: NextRequest) {
       threadId = thread.id;
     }
 
+    const manualFromMessage = inferManualFromText(message);
+    if (manualFromMessage) {
+      threadManualMemory.set(threadId, manualFromMessage);
+    }
+
+    const manualForRun =
+      manualFromMessage ?? threadManualMemory.get(threadId) ?? null;
+
     await openai.beta.threads.messages.create(threadId, {
       role: "user",
       content: message,
     });
 
-    const run = await createRunWithActions(threadId, process.env.OPENAI_ASSISTANT_ID);
+    const run = await createRun(threadId, assistantId, manualForRun);
 
     if (run.status !== "completed") {
       const errorMessage =
@@ -105,25 +119,32 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function createRunWithActions(threadId: string, assistantId: string) {
-  let run = await openai.beta.threads.runs.create(threadId, {
+async function createRun(
+  threadId: string,
+  assistantId: string,
+  manual: ManualKey | null
+) {
+  const runOptions: Record<string, any> = {
     assistant_id: assistantId,
-  });
+  };
+
+  if (manual) {
+    runOptions.tool_resources = {
+      file_search: {
+        vector_store_ids: [vectorStoreIds[manual]],
+      },
+    };
+  } else {
+    runOptions.additional_instructions = manualSelectionPrompt;
+  }
+
+  let run = await openai.beta.threads.runs.create(threadId, runOptions);
 
   while (!TERMINAL_STATUSES.has(run.status)) {
     if (run.status === "requires_action") {
-      const toolCalls =
-        run.required_action?.submit_tool_outputs?.tool_calls ?? [];
-
-      if (toolCalls.length === 0) {
-        throw new Error("Run requires action but no tool calls were supplied");
-      }
-
-      const tool_outputs = await handleToolCalls(toolCalls);
-      run = await openai.beta.threads.runs.submitToolOutputs(threadId, run.id, {
-        tool_outputs,
-      });
-      continue;
+      throw new Error(
+        "Assistant requested manual tool outputs but none are configured."
+      );
     }
 
     await delay(750);
@@ -133,196 +154,53 @@ async function createRunWithActions(threadId: string, assistantId: string) {
   return run;
 }
 
-async function handleToolCalls(toolCalls: any[]) {
-  const outputs = [] as { tool_call_id: string; output: string }[];
-
-  for (const call of toolCalls) {
-    if (call.type !== "function" || !call.function?.name) {
-      throw new Error("Unsupported tool call type");
-    }
-
-    const args = safeJsonParse(call.function.arguments);
-    const query = typeof args?.query === "string" ? args.query : "";
-
-    if (!query) {
-      throw new Error(`Missing 'query' argument for ${call.function.name}`);
-    }
-
-    const outputPayload = await executeManualSearch(call.function.name, query);
-    outputs.push({ tool_call_id: call.id, output: outputPayload });
-  }
-
-  return outputs;
-}
-
-async function executeManualSearch(actionName: string, query: string) {
-  const endpoint = ACTION_ENDPOINTS[actionName];
-
-  if (!endpoint) {
-    throw new Error(`Unsupported action: ${actionName}`);
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    "Content-Type": "application/json",
-    "OpenAI-Beta": "assistants=v2",
-  };
-
-  if (process.env.OPENAI_PROJECT) {
-    headers["OpenAI-Project"] = process.env.OPENAI_PROJECT;
-  }
-
-  if (process.env.OPENAI_ORGANIZATION) {
-    headers["OpenAI-Organization"] = process.env.OPENAI_ORGANIZATION;
-  }
-
-  const response = await fetch(`${OPENAI_API_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(
-      data?.error?.message || `Search request failed for ${actionName}`
-    );
-  }
-
-  return JSON.stringify(data);
-}
-
-function safeJsonParse(value: string | null | undefined) {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function ensureAssistantConfiguration(assistantId: string) {
-  if (assistantSetupEnsured) {
+function resolveAssistantSyncMode(value?: string | null): AssistantSyncMode {
+  return value === "manual" ? "manual" : "auto";
+}
+
+type ManualKey = keyof typeof vectorStoreIds;
+
+function inferManualFromText(text: string): ManualKey | null {
+  const normalized = text.toLowerCase();
+
+  if (/(ilo\/?health|health manual|\bhealth\b)/i.test(normalized)) {
+    return "health";
+  }
+
+  if (/(ilo\/?pensions?|pension manual|\bpensions?\b)/i.test(normalized)) {
+    return "pensions";
+  }
+
+  return null;
+}
+
+async function ensureAssistantReady(assistantId: string) {
+  if (assistantSyncMode === "manual") {
+    if (!manualSyncModeLogged) {
+      console.info(
+        "OPENAI_ASSISTANT_SYNC_MODE=manual — skipping assistant auto-sync."
+      );
+      manualSyncModeLogged = true;
+    }
     return;
   }
 
-  const assistant = await openai.beta.assistants.retrieve(assistantId);
-  const updatePayload: Record<string, any> = {};
-
-  if (assistantConfig.name && assistant.name !== assistantConfig.name) {
-    updatePayload.name = assistantConfig.name;
+  if (!assistantSetupPromise) {
+    assistantSetupPromise = ensureAssistantConfiguration({
+      openai,
+      assistantId,
+      mode: assistantSyncMode,
+    })
+      .then(() => undefined)
+      .catch((error) => {
+        assistantSetupPromise = null;
+        throw error;
+      });
   }
 
-  if (
-    assistantConfig.description &&
-    assistant.description !== assistantConfig.description
-  ) {
-    updatePayload.description = assistantConfig.description;
-  }
-
-  if (assistantConfig.instructions && assistant.instructions !== assistantConfig.instructions) {
-    updatePayload.instructions = assistantConfig.instructions;
-  }
-
-  if (assistantConfig.model && assistant.model !== assistantConfig.model) {
-    updatePayload.model = assistantConfig.model;
-  }
-
-  const currentTemperature =
-    typeof assistant.temperature === "number" ? assistant.temperature : undefined;
-  if (
-    typeof assistantConfig.temperature === "number" &&
-    assistantConfig.temperature !== currentTemperature
-  ) {
-    updatePayload.temperature = assistantConfig.temperature;
-  }
-
-  const currentTopP = typeof assistant.top_p === "number" ? assistant.top_p : undefined;
-  if (typeof assistantConfig.top_p === "number" && assistantConfig.top_p !== currentTopP) {
-    updatePayload.top_p = assistantConfig.top_p;
-  }
-
-  const currentMetadata = assistant.metadata ?? {};
-  if (
-    assistantConfig.metadata &&
-    JSON.stringify(currentMetadata) !== JSON.stringify(assistantConfig.metadata)
-  ) {
-    updatePayload.metadata = assistantConfig.metadata;
-  }
-
-  if (
-    assistantConfig.response_format &&
-    JSON.stringify(assistant.response_format ?? {}) !==
-      JSON.stringify(assistantConfig.response_format)
-  ) {
-    updatePayload.response_format = assistantConfig.response_format;
-  }
-
-  const existingTools = assistant.tools || [];
-  const manualToolNames = new Set(
-    manualFunctionTools.map((tool) => tool.function.name)
-  );
-  const manualToolsOutOfSync = manualFunctionTools.some((tool) => {
-    const matchingTool = existingTools.find(
-      (existingTool: any) =>
-        existingTool.type === "function" &&
-        existingTool.function?.name === tool.function.name
-    );
-
-    if (!matchingTool) {
-      return true;
-    }
-
-    return !manualFunctionDefinitionMatches(matchingTool, tool);
-  });
-
-  if (manualToolsOutOfSync) {
-    const preservedTools = existingTools.filter(
-      (tool: any) =>
-        !(
-          tool.type === "function" &&
-          tool.function?.name &&
-          manualToolNames.has(tool.function.name)
-        )
-    );
-
-    updatePayload.tools = [...preservedTools, ...manualFunctionTools];
-  }
-
-  if (Object.keys(updatePayload).length > 0) {
-    await openai.beta.assistants.update(assistantId, updatePayload);
-  }
-
-  assistantSetupEnsured = true;
-}
-
-type ManualFunctionTool = (typeof manualFunctionTools)[number];
-
-function manualFunctionDefinitionMatches(
-  existingTool: any,
-  desiredTool: ManualFunctionTool
-) {
-  if (existingTool.type !== "function" || !existingTool.function) {
-    return false;
-  }
-
-  if (existingTool.function.name !== desiredTool.function.name) {
-    return false;
-  }
-
-  const normalize = (fn: any) => ({
-    name: fn?.name,
-    description: fn?.description,
-    parameters: fn?.parameters,
-  });
-
-  return (
-    JSON.stringify(normalize(existingTool.function)) ===
-    JSON.stringify(normalize(desiredTool.function))
-  );
+  await assistantSetupPromise;
 }

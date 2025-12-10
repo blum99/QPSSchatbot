@@ -25,8 +25,20 @@ Create a `.env.local` (local) or add Codespaces secrets with these keys:
 - `OPENAI_PROJECT` (optional)
 - `OPENAI_ORGANIZATION` (optional)
 - `OPENAI_BASE_URL` (optional; defaults to https://api.openai.com/v1)
+- `OPENAI_ASSISTANT_SYNC_MODE` (optional; `auto` by default, set to `manual` to skip on-request assistant updates)
 
 Example values live in `docs/env.sample`. Next.js will load `.env.local` automatically in dev.
+
+### Syncing the OpenAI Assistant outside requests
+
+The API route now defaults to `OPENAI_ASSISTANT_SYNC_MODE=auto`, which keeps the remote assistant in sync during the first request handled by each server instance. This guarantees correctness but adds an extra round trip on cold starts. To avoid the latency penalty:
+
+1. Run `npm run sync:assistant` whenever you change `src/config/assistant.ts`. The script uses the same config to push updates via the OpenAI API.
+2. Deploy with `OPENAI_ASSISTANT_SYNC_MODE=manual`. In this mode the runtime skips the sync step entirely, so cold starts no longer incur the additional API call. Remember to rerun the sync script before each deploy (or wire it into CI) to keep the assistant current.
+
+### Vector store file search
+
+The assistant exposes OpenAI's `file_search` tool. `src/config/assistant.ts` keeps the two vector store IDs in `vectorStoreIds`, and the `/api/chat` route selects exactly one ID per run based on simple keyword heuristics (mentions of "pension" or "health"). When we cannot determine the tool, the run omits a store and the assistant is instructed to ask the user to clarify before searching. Update `vectorStoreIds` whenever you rotate or rebuild a store, rerun `npm run sync:assistant`, and remind users to mention the target manual at least once per conversation so subsequent turns stay routed correctly.
 
 ### Adding secrets in GitHub Codespaces
 1) In GitHub: **Settings → Codespaces secrets** (org or repo scope) → **New secret** for each key above.

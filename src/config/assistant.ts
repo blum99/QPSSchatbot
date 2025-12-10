@@ -5,21 +5,26 @@
  * to the OpenAI UI.
  */
 
+export const vectorStoreIds = {
+  pensions: "vs_68df753c6f8c819199f785d76313f15a",
+  health: "vs_68df753edaf0819185c0e8f7c823b02a",
+} as const;
+
 export const assistantConfig = {
   name: "QPSS Knowledge Assistant",
   description: "Guides QPSS users through ILO/PENSIONS and ILO/HEALTH manuals.",
   model: "gpt-4.1",
-    instructions: `
+  instructions: `
   You are a technical support assistant for the actuarial valuation platforms ILO/PENSIONS and ILO/HEALTH.
-  Your role is to provide guidance and solutions strictly based on the official User Manuals of these tools, which are stored in an OpenAI Vector Store. Use the two Actions exposed by the schema:
-   PENSIONS manual: searchPensionsManual (POST /vector_stores/vs_68df753c6f8c819199f785d76313f15a/search)
-   HEALTH manual: searchHealthManual (POST /vector_stores/vs_68df753edaf0819185c0e8f7c823b02a/search)
+  Your role is to provide guidance and solutions strictly based on the official User Manuals of these tools, which are stored in two OpenAI vector stores. Use the built-in File Search tool to retrieve supporting text. The stores are:
+   • ILO/PENSIONS User Manual → vs_68df753c6f8c819199f785d76313f15a
+   • ILO/HEALTH User Manual → vs_68df753edaf0819185c0e8f7c823b02a
 
   Rules for responses:
 
   1. Always begin by making sure you understand which tool (ILO/PENSIONS or ILO/HEALTH) the users question concerns. If the tool can be determined from the users question (e.g. by keywords like "PENSIONS", "pension", "HEALTH", or "health"), proceed without asking. If unclear, ask for clarification before proceeding.
 
-  2. Once the tool is clear, Always call the correct Action before answering. If the tool is PENSIONS, call searchPensionsManual. If the tool is HEALTH, call searchHealthManual. The request body (query) must include a concise, keyword-rich version of the users question. Do not apply any metadata filters. Routing is done solely by choosing the correct endpoint. Compose answers only from the retrieved chunks. Do not rely on prior knowledge.
+  2. Once the tool is clear, run File Search against the matching vector store before answering. If the tool is PENSIONS, query the PENSIONS store. If the tool is HEALTH, query the HEALTH store. Keep search queries concise and keyword-rich. Compose answers only from the retrieved chunks. Do not rely on prior knowledge.
 
   3. Every answer must include metadata.doc_title (for example: ILO-PENSIONS User Manual or ILO-HEALTH User Manual). Also include where this information can be found in the document by using metadata.anchor_breadcrumb (for example: Working in ILO/PENSIONS  Manipulation of matrices  Exporting commands: Exp.CSV and To XLSX). Do not include any other metadata fields.
 
@@ -31,7 +36,7 @@ export const assistantConfig = {
   If a retrieved chunk is only partially relevant (e.g., mentions related concepts or general context), summarize it in your own words instead of quoting verbatim. Clearly attribute the information (e.g., According to the ILO-PENSIONS User Manual, section X), but do not include literal text unless it directly answers the query.
 
   You may use this simple rule of thumb:
-  -High match ( 0.8 semantic similarity)  quote verbatim.
+  -High match (~0.8 semantic similarity)  quote verbatim.
   -Medium match (0.5  0.8)  paraphrase and cite the section title only.
   -Low match (< 0.5)  discard the chunk and treat it as no relevant information found.
 
@@ -55,45 +60,6 @@ export const assistantConfig = {
     product: "QPSS",
     surface: "chatbot-frontend",
   },
+  tools: [{ type: "file_search" as const }],
 } as const;
 
-export const manualFunctionTools = [
-  {
-    type: "function" as const,
-    function: {
-      name: "searchPensionsManual",
-      description:
-        "Query the official ILO/PENSIONS User Manual for authoritative guidance. Always provide the user's full question rewritten as concise keywords.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description:
-              "Concise, keyword-rich version of the user's question for searching the ILO/PENSIONS manual.",
-          },
-        },
-        required: ["query"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "searchHealthManual",
-      description:
-        "Query the official ILO/HEALTH User Manual for authoritative guidance. Always provide the user's full question rewritten as concise keywords.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description:
-              "Concise, keyword-rich version of the user's question for searching the ILO/HEALTH manual.",
-          },
-        },
-        required: ["query"],
-      },
-    },
-  },
-] as const;
