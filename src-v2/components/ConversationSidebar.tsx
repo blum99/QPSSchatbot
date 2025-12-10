@@ -1,5 +1,11 @@
 import { Plus, MessageSquare, Trash2, Moon, Sun } from "lucide-react";
-import { Conversation } from "./types";
+
+export interface Conversation {
+  id: string;
+  title: string;
+  lastMessage: string;
+  timestamp: Date;
+}
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
