@@ -1,0 +1,13 @@
+This is a placeholder file. Replace this with your actual PDF documents.
+
+Expected filenames (based on DocumentsContacts.tsx):
+- ilo-health---user-manual.pdf
+- ilo-health---technical-guide.pdf
+- ilo-pensions---user-manual.pdf
+- ilo-pensions---technical-guide.pdf
+- quick-reference-guide.pdf
+
+To add your PDFs:
+1. Upload your PDF files to this folder
+2. Rename them to match the expected filenames above (or update DocumentsContacts.tsx to match your filenames)
+3. Delete this placeholder file
