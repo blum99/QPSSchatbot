@@ -67,39 +67,40 @@ Future layouts can be added following the instructions below.
 
 When you're ready to create v3, v4, or any future version:
 
-### Step 1: Create Your New Component
-
-Create a new file in the chat components folder:
+### Step 1: Create Your Version Folder
 
 ```bash
-src/app/components/chat/ChatApp-v3.tsx
+# Option A: Start from template
+cp -r src/app/components/chat/v3 src/app/components/chat/v4
+
+# Option B: Copy from existing version
+cp -r src/app/components/chat/v2 src/app/components/chat/v4
 ```
 
-**Template to start from:**
-```typescript
-'use client';
+### Step 2: Build Your Components
 
-import { useState } from 'react';
-// Import your components...
-
-export function ChatApp() {
-  // Your new UI implementation
-  return (
-    <div className="flex h-screen">
-      {/* Your layout here */}
-    </div>
-  );
-}
+Edit files in your new version folder:
+```
+src/app/components/chat/v4/
+├── index.tsx           # Main ChatApp (required, must export ChatApp)
+├── YourComponent.tsx   # Add your custom components
+└── AnotherComponent.tsx
 ```
 
-### Step 2: Register in page.tsx
+**Important**: 
+- Main component must be in `index.tsx` and export as `ChatApp`
+- Import shared types: `import { Message } from "../shared/types"`
+- Keep everything version-specific inside the v4 folder
+
+### Step 3: Register in page.tsx
 
 Edit `src/app/page.tsx`:
 
 ```typescript
-import { ChatApp as ChatAppV1 } from "./components/chat/ChatApp-v1";
-import { ChatApp as ChatAppV2 } from "./components/chat/ChatApp-v2";
-import { ChatApp as ChatAppV3 } from "./components/chat/ChatApp-v3"; // Add this
+import { ChatApp as ChatAppV1 } from "./components/chat/v1";
+import { ChatApp as ChatAppV2 } from "./components/chat/v2";
+import { ChatApp as ChatAppV3 } from "./components/chat/v3";
+import { ChatApp as ChatAppV4 } from "./components/chat/v4"; // Add this
 
 export default function Home() {
   const FRONTEND_VERSION = process.env.NEXT_PUBLIC_FRONTEND_VERSION || 'v2';
@@ -107,7 +108,8 @@ export default function Home() {
   const versions = {
     v1: ChatAppV1,
     v2: ChatAppV2,
-    v3: ChatAppV3, // Add this
+    v3: ChatAppV3,
+    v4: ChatAppV4,  // Add this
   };
 
   const SelectedChatApp = versions[FRONTEND_VERSION as keyof typeof versions] || ChatAppV2;
@@ -121,7 +123,7 @@ export default function Home() {
 Update `.env.local`:
 
 ```bash
-NEXT_PUBLIC_FRONTEND_VERSION=v3
+NEXT_PUBLIC_FRONTEND_VERSION=v4
 ```
 
 ### Step 4: Restart and Test
@@ -130,6 +132,30 @@ NEXT_PUBLIC_FRONTEND_VERSION=v3
 npm run dev
 # Then refresh browser at localhost:3000
 ```
+
+---
+
+## 🗑️ Deleting Old Versions
+
+You can safely delete any version without affecting others:
+
+```bash
+# Delete entire v1 folder
+rm -rf src/app/components/chat/v1
+
+# Remove from page.tsx (delete these lines):
+# import { ChatApp as ChatAppV1 } from "./components/chat/v1";
+# v1: ChatAppV1,
+
+# Restart
+npm run dev
+```
+
+**Benefits of new structure:**
+- Complete isolation between versions
+- No shared component conflicts
+- Easy to maintain multiple versions
+- Clean deletion without side effects
 
 ---
 
@@ -142,23 +168,31 @@ src/app/
 ├── page.tsx                           # Main entry - Version selector logic
 ├── components/
 │   └── chat/
-│       ├── ChatApp-v1.tsx            # Version 1: Original layout
-│       ├── ChatApp-v2.tsx            # Version 2: Figma Modern UI
-│       ├── ChatApp-v3.tsx            # Version 3: (future)
-│       ├── ChatMessage.tsx           # Shared across all versions
-│       ├── ConversationSidebar.tsx   # Shared across all versions
-│       ├── DocumentsContacts.tsx     # Used by v2+
-│       ├── SettingsMenu.tsx          # Used by v2+
-│       └── types.ts                  # Shared TypeScript types
+│       ├── README.md                 # Comprehensive documentation
+│       ├── shared/
+│       │   └── types.ts              # Shared TypeScript types
+│       ├── v1/                       # Version 1: Original layout
+│       │   ├── index.tsx             # Main ChatApp component
+│       │   ├── ChatMessage.tsx       # Message display
+│       │   └── ConversationSidebar.tsx
+│       ├── v2/                       # Version 2: Figma Modern UI
+│       │   ├── index.tsx             # Main ChatApp component
+│       │   ├── ChatMessage.tsx       # Message with markdown
+│       │   ├── ConversationSidebar.tsx
+│       │   └── DocumentsContacts.tsx # Resources/Support
+│       └── v3/                       # Version 3: Template (ready for your design)
+│           ├── index.tsx             # Template ChatApp component
+│           └── README.md             # Quick start guide
 └── api/
     └── chat/
         └── route.ts                  # Backend API (same for all versions)
 ```
 
 **Key Points:**
-- `page.tsx` reads `NEXT_PUBLIC_FRONTEND_VERSION` and loads the correct component
-- Each version is self-contained in its own `ChatApp-vX.tsx` file
-- Shared components (like `ChatMessage`) can be reused across versions
+- `page.tsx` reads `NEXT_PUBLIC_FRONTEND_VERSION` and loads the correct version
+- Each version is self-contained in its own folder (v1/, v2/, v3/)
+- Shared types in `shared/types.ts` are used across all versions
+- You can delete any version folder (e.g., v1/) without affecting others
 - Backend API (`route.ts`) remains unchanged regardless of frontend version
 
 ---
