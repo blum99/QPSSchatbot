@@ -8,7 +8,10 @@ This project supports multiple frontend implementations that can be switched dyn
 
 1. **Edit `.env.local`**:
    ```bash
-   NEXT_PUBLIC_FRONTEND_VERSION=v2  # Change to v1, v2, v3, etc.
+   NEXT_PUBLIC_FRONTEND_VERSION=v1
+
+
+     # Change to v1, v2, v3, etc.
    ```
 
 2. **Restart the dev server**:
