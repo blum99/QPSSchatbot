@@ -18,7 +18,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Switching Between Frontend Versions
 
-This project supports multiple UI layouts that can be switched via environment variable. See **[FRONTEND-SELECTOR.md](FRONTEND-SELECTOR.md)** for complete documentation.
+This project supports multiple UI layouts that can be switched via environment variable. See **[VERSION-GUIDE.md](VERSION-GUIDE.md)** for complete documentation.
 
 **Quick Start:**
 1. Open `.env.local`
