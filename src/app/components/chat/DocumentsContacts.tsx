@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileText, Book, Settings as SettingsIcon } from "lucide-react";
+import { Download, FileText, Book } from "lucide-react";
 import { SettingsMenu } from "./SettingsMenu";
 
 export interface Publication {

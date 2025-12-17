@@ -115,7 +115,9 @@ export async function POST(req: NextRequest) {
     });
 
     const assistantMessage = messages.data.find(
-      (m) => m.role === "assistant" && ("run_id" in m ? m.run_id === run.id : true)
+      (messageEntry) =>
+        messageEntry.role === "assistant" &&
+        ("run_id" in messageEntry ? messageEntry.run_id === run.id : true)
     );
 
     if (!assistantMessage) {
@@ -126,17 +128,26 @@ export async function POST(req: NextRequest) {
     }
 
     const textParts = assistantMessage.content
-      .filter((part: any) => part.type === "text")
-      .map((part: any) => part.text?.value ?? "");
+      .filter(
+        (part): part is OpenAI.Beta.Threads.MessageContent.Text => part.type === "text"
+      )
+      .map((part) => part.text?.value ?? "");
 
     return NextResponse.json({
       threadId,
       reply: textParts.join("\n\n"),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Error in /api/chat:", err);
     return NextResponse.json(
-      { error: err?.message || "Internal server error" },
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message?: unknown }).message)
+            : "Internal server error",
+      },
       { status: 500 }
     );
   }

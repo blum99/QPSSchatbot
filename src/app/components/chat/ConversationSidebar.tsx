@@ -1,9 +1,8 @@
 "use client";
 
-import { Plus, MessageSquare, Trash2, Moon, Sun, Folder as FolderIcon, ChevronDown, ChevronRight, Edit2, Check, X as XIcon, Settings as SettingsIcon, ChevronLeft } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Folder as FolderIcon, ChevronDown, ChevronRight, Edit2, Check, X as XIcon, ChevronLeft } from "lucide-react";
 import { useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
-import type { DragSourceMonitor, DropTargetMonitor } from "react-dnd";
 import { SettingsMenu } from "./SettingsMenu";
 import type { Conversation, Folder } from "../shared/types";
 
@@ -34,7 +33,7 @@ interface DraggableConversationProps {
 }
 
 function DraggableConversation({ conversation, isActive, onSelect, onDelete }: DraggableConversationProps) {
-  const [{ isDragging }, drag] = useDrag(() => ({
+  const [{ isDragging }, drag] = useDrag<{ id: string }, void, { isDragging: boolean }>(() => ({
     type: "conversation",
     item: { id: conversation.id },
     collect: (monitor) => ({
@@ -44,7 +43,7 @@ function DraggableConversation({ conversation, isActive, onSelect, onDelete }: D
 
   return (
     <div
-      ref={drag as any}
+      ref={(node) => drag(node)}
       className={`group relative flex cursor-pointer flex-col gap-1 rounded-lg p-2.5 transition-colors ${
         isActive
           ? "bg-gray-100 dark:bg-gray-800"
@@ -86,7 +85,7 @@ function DroppableFolder({ folder, onToggle, onDelete, onDrop, onRename, childre
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(folder.name);
 
-  const [{ isOver }, drop] = useDrop(() => ({
+  const [{ isOver }, drop] = useDrop<{ id: string }, void, { isOver: boolean }>(() => ({
     accept: "conversation",
     drop: (item: { id: string }) => {
       onDrop(item.id);
@@ -108,7 +107,7 @@ function DroppableFolder({ folder, onToggle, onDelete, onDrop, onRename, childre
   return (
     <div>
       <div
-        ref={drop as any}
+        ref={(node) => drop(node)}
         className={`group flex items-center gap-2 rounded-lg p-2 transition-colors ${
           isOver ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-gray-50 dark:hover:bg-gray-800"
         }`}
@@ -211,7 +210,7 @@ export function ConversationSidebar({
   const uncategorizedConversations = conversationsByFolder["uncategorized"] || [];
 
   // Drop zone for uncategorized area
-  const [{ isOverUncategorized }, dropUncategorized] = useDrop(() => ({
+  const [{ isOverUncategorized }, dropUncategorized] = useDrop<{ id: string }, void, { isOverUncategorized: boolean }>(() => ({
     accept: "conversation",
     drop: (item: { id: string }) => {
       onMoveConversationToFolder(item.id, null);
@@ -331,7 +330,7 @@ export function ConversationSidebar({
             {uncategorizedConversations.length > 0 && (
               <div>
                 <div
-                  ref={dropUncategorized as any}
+                  ref={(node) => dropUncategorized(node)}
                   className={`mb-1 rounded-lg p-2 text-xs text-gray-500 dark:text-gray-400 ${
                     isOverUncategorized ? "bg-blue-50 dark:bg-blue-900/20" : ""
                   }`}
