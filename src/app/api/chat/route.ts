@@ -83,6 +83,20 @@ export async function POST(req: NextRequest) {
     console.log("Manual from model:", manualFromModel);
     console.log("Manual from message:", manualFromMessage);
 
+    // Check if user is trying to switch manuals mid-conversation
+    const existingManual = threadManualMemory.get(threadId);
+    if (existingManual && manualFromMessage && manualFromMessage !== existingManual) {
+      // User is asking about a different manual than the conversation is locked to
+      const currentManualName = existingManual === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+      const requestedManualName = manualFromMessage === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+      
+      return NextResponse.json({
+        threadId,
+        reply: `This conversation is currently using the ${currentManualName} manual. To ask questions about ${requestedManualName}, please start a new conversation and select the appropriate tool.`,
+        detectedManual: existingManual,
+      });
+    }
+
     // Priority: explicit model selection > message inference > thread memory
     const determinedManual = manualFromModel ?? manualFromMessage;
 
@@ -147,6 +161,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       threadId,
       reply: textParts.join("\n\n"),
+      detectedManual: manualForRun,
     });
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err);
@@ -209,7 +224,7 @@ function delay(ms: number) {
 }
 
 function resolveAssistantSyncMode(value?: string | null): AssistantSyncMode {
-  return value === "manual" ? "manual" : "auto";
+  return value === "auto" ? "auto" : "manual";
 }
 
 function inferManualFromModel(model?: string): ManualKey | null {

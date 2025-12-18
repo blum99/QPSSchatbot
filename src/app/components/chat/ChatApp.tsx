@@ -34,7 +34,7 @@ interface ConversationModelData {
   };
 }
 
-type ModelType = "AUTO" | "ILO/HEALTH" | "ILO/PENSION" | "ILO/SSI" | "ILO/RAP";
+type ModelType = "AUTO" | "ILO/HEALTH" | "ILO/PENSIONS" | "ILO/SSI" | "ILO/RAP";
 
 export function ChatApp() {
   const [conversations, setConversations] = useState<Conversation[]>([
@@ -66,7 +66,7 @@ export function ChatApp() {
   const [activeView, setActiveView] = useState<"chat" | "resources" | "support">("chat");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [userName] = useState("User");
-  const [selectedGuidebookModel, setSelectedGuidebookModel] = useState<Exclude<ModelType, "AUTO">>("ILO/PENSION");
+  const [selectedGuidebookModel, setSelectedGuidebookModel] = useState<Exclude<ModelType, "AUTO">>("ILO/PENSIONS");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -203,14 +203,28 @@ export function ChatApp() {
         threadId?: string;
         reply?: string;
         error?: string;
+        detectedManual?: string;
       };
 
       console.log("API Response:", data);
       console.log("Reply text:", data.reply);
       console.log("Reply length:", data.reply?.length);
+      console.log("Detected manual:", data.detectedManual);
 
       if (!response.ok) {
         throw new Error(data?.error || "Assistant response failed");
+      }
+
+      // If AUTO mode detected a manual, lock the conversation to that manual
+      if (currentConversationModel.model === "AUTO" && data.detectedManual) {
+        const detectedModel = data.detectedManual === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+        setConversationModelData((prev) => ({
+          ...prev,
+          [activeConversationId]: {
+            model: detectedModel,
+            locked: true,
+          },
+        }));
       }
 
       const botMessage: Message = {
@@ -242,9 +256,26 @@ export function ChatApp() {
       );
     } catch (error) {
       console.error("Error sending message:", error);
+      
+      // Check if it's a rate limit error and extract wait time
+      const errorText = error instanceof Error ? error.message : String(error);
+      const isRateLimit = errorText.includes("Rate limit") || errorText.includes("rate_limit");
+      
+      let waitTime = "10-15 seconds";
+      if (isRateLimit) {
+        // Try to extract precise wait time from error message
+        const match = errorText.match(/try again in ([\d.]+)s/i);
+        if (match && match[1]) {
+          const seconds = Math.ceil(parseFloat(match[1]));
+          waitTime = `${seconds} seconds`;
+        }
+      }
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Sorry, I encountered an error. Please try again.",
+        text: isRateLimit 
+          ? `⏱️ Rate limit reached. Please wait ${waitTime} before sending another message.`
+          : "Sorry, I encountered an error. Please try again.",
         sender: "bot",
         timestamp: new Date(),
       };
@@ -405,10 +436,10 @@ export function ChatApp() {
     // Determine which tool to select in Resources
     const currentModel = currentConversationModel.model;
     
-    // If AUTO or not locked, default to ILO/PENSION
+    // If AUTO or not locked, default to ILO/PENSIONS
     // Otherwise use the committed tool
     if (currentModel === "AUTO" || !currentConversationModel.locked) {
-      setSelectedGuidebookModel("ILO/PENSION");
+      setSelectedGuidebookModel("ILO/PENSIONS");
     } else {
       setSelectedGuidebookModel(currentModel as Exclude<ModelType, "AUTO">);
     }
@@ -416,7 +447,7 @@ export function ChatApp() {
     setActiveView("resources");
   };
 
-  const models: ModelType[] = ["AUTO", "ILO/HEALTH", "ILO/PENSION", "ILO/SSI", "ILO/RAP"];
+  const models: ModelType[] = ["AUTO", "ILO/HEALTH", "ILO/PENSIONS", "ILO/SSI", "ILO/RAP"];
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -668,13 +699,21 @@ export function ChatApp() {
                               <span className="text-blue-600 dark:text-blue-400">AUTO</span> mode. Sources are
                               automatically selected based on the conversation.
                             </>
+                          ) : currentConversationModel.model !== "ILO/SSI" && currentConversationModel.model !== "ILO/RAP" ? (
+                            <>
+                              You are now sourcing information from the{" "}
+                              <span className="text-blue-600 dark:text-blue-400">
+                                {currentConversationModel.model}
+                              </span>
+                              {" "}Guidebook.
+                            </>
                           ) : (
                             <>
                               You are now sourcing information from the{" "}
                               <span className="text-blue-600 dark:text-blue-400">
                                 {currentConversationModel.model}
-                              </span>{" "}
-                              guidebook.
+                              </span>
+                              {" "}guidebook.
                             </>
                           )}
                         </div>
