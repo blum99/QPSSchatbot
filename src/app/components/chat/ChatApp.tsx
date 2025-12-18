@@ -184,6 +184,8 @@ export function ChatApp() {
     setInputValue("");
     setIsTyping(true);
 
+    console.log("Sending message with model:", currentConversationModel.model);
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -193,6 +195,7 @@ export function ChatApp() {
         body: JSON.stringify({
           message: inputValue,
           threadId: conversations.find((c) => c.id === activeConversationId)?.threadId,
+          model: currentConversationModel.model,
         }),
       });
 
@@ -636,19 +639,25 @@ export function ChatApp() {
                         <div className="mb-3 flex items-center gap-2">
                           <span className="text-sm text-gray-600 dark:text-gray-300">Tool:</span>
                           <div className="flex gap-2">
-                            {models.map((model) => (
-                              <button
-                                key={model}
-                                onClick={() => handleModelSelect(model)}
-                                className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                                  currentConversationModel.model === model
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
-                                }`}
-                              >
-                                {model}
-                              </button>
-                            ))}
+                            {models.map((model) => {
+                              const isDisabled = model === "ILO/SSI" || model === "ILO/RAP";
+                              return (
+                                <button
+                                  key={model}
+                                  onClick={() => !isDisabled && handleModelSelect(model)}
+                                  disabled={isDisabled}
+                                  className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                                    isDisabled
+                                      ? "cursor-not-allowed bg-gray-200 text-gray-400 opacity-50 dark:bg-gray-700 dark:text-gray-500"
+                                      : currentConversationModel.model === model
+                                      ? "bg-blue-600 text-white"
+                                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
+                                  }`}
+                                >
+                                  {model}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       ) : (

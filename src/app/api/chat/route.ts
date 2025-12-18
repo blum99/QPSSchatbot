@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     await ensureAssistantReady(assistantId);
 
-    const { threadId: existingThreadId, message } = await req.json();
+    const { threadId: existingThreadId, message, model } = await req.json();
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -74,11 +74,20 @@ export async function POST(req: NextRequest) {
       threadId = thread.id;
     }
 
+    // Determine manual from frontend model selection or message text
+    const manualFromModel = inferManualFromModel(model);
     const manualFromMessage = inferManualFromText(message);
     let pendingQuestion: string | null = null;
 
-    if (manualFromMessage) {
-      threadManualMemory.set(threadId, manualFromMessage);
+    console.log("Model from frontend:", model);
+    console.log("Manual from model:", manualFromModel);
+    console.log("Manual from message:", manualFromMessage);
+
+    // Priority: explicit model selection > message inference > thread memory
+    const determinedManual = manualFromModel ?? manualFromMessage;
+
+    if (determinedManual) {
+      threadManualMemory.set(threadId, determinedManual);
 
       // Check if this is just a clarification (e.g., "pensions") and we have a pending question
       if (isManualClarificationOnly(message)) {
@@ -89,7 +98,9 @@ export async function POST(req: NextRequest) {
     }
 
     const manualForRun =
-      manualFromMessage ?? threadManualMemory.get(threadId) ?? null;
+      determinedManual ?? threadManualMemory.get(threadId) ?? null;
+
+    console.log("Final manual for run:", manualForRun);
 
     // If no manual could be determined, store this message as a pending question
     if (!manualForRun) {
@@ -199,6 +210,16 @@ function delay(ms: number) {
 
 function resolveAssistantSyncMode(value?: string | null): AssistantSyncMode {
   return value === "manual" ? "manual" : "auto";
+}
+
+function inferManualFromModel(model?: string): ManualKey | null {
+  if (!model || model === "AUTO") return null;
+  
+  const normalizedModel = model.toUpperCase();
+  if (normalizedModel.includes("PENSION")) return "pensions";
+  if (normalizedModel.includes("HEALTH")) return "health";
+  
+  return null;
 }
 
 type ManualKey = keyof typeof vectorStoreIds;
