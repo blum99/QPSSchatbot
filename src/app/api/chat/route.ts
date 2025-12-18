@@ -198,7 +198,9 @@ function delay(ms: number) {
 }
 
 function resolveAssistantSyncMode(value?: string | null): AssistantSyncMode {
-  return value === "manual" ? "manual" : "auto";
+  const normalized = value?.trim().toLowerCase();
+  // Default to manual unless explicitly set to auto.
+  return normalized === "auto" ? "auto" : "manual";
 }
 
 type ManualKey = keyof typeof vectorStoreIds;
