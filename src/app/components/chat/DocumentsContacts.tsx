@@ -80,7 +80,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
     },
     {
       id: "5",
-      name: "ILO/PENSION Manual (French)",
+      name: "ILO/PENSION Manual (Español)",
       size: "14",
       type: "Manual",
       model: "ILO/PENSION",
@@ -96,7 +96,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
     },
     {
       id: "7",
-      name: "ILO/RAP Technical Documentation",
+      name: "ILO/RAP Technical Documentation (English)",
       size: "22",
       type: "Documentation",
       model: "ILO/RAP",
