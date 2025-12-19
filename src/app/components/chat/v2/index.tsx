@@ -152,6 +152,7 @@ export function ChatApp() {
         threadId?: string;
         reply?: string;
         error?: string;
+        detectedManual?: string;
       };
 
       if (!response.ok) {
