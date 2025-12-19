@@ -16,20 +16,9 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Switching Between Frontend Versions
+## Frontend
 
-This project supports multiple UI layouts that can be switched via environment variable. See **[VERSION-GUIDE.md](VERSION-GUIDE.md)** for complete documentation.
-
-**Quick Start:**
-1. Open `.env.local`
-2. Change `NEXT_PUBLIC_FRONTEND_VERSION=v2` to `v1` or `v2`
-3. Restart the dev server (`npm run dev`)
-4. Refresh your browser
-
-**Available Versions:**
-- `v1` - Original simple layout
-- `v2` - Figma Modern UI (enhanced design with data source switcher, resources view)
-- `v3+` - Future versions (extensible architecture ready for additions)
+The app renders a single chat experience from [src/app/components/chat](src/app/components/chat). Update [src/app/page.tsx](src/app/page.tsx) or the components in that folder to change the UI.
 
 ## Required environment
 
@@ -41,7 +30,6 @@ Create a `.env.local` (local) or add Codespaces secrets with these keys:
 - `OPENAI_ORGANIZATION` (optional)
 - `OPENAI_BASE_URL` (optional; defaults to https://api.openai.com/v1)
 - `OPENAI_ASSISTANT_SYNC_MODE` (optional; `auto` by default, set to `manual` to skip on-request assistant updates)
-- `NEXT_PUBLIC_FRONTEND_VERSION` (optional; `v2` by default, controls which UI layout to display)
 
 Example values live in `docs/env.sample`. Next.js will load `.env.local` automatically in dev.
 

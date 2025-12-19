@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { ArrowUp, User, LogOut, Settings as SettingsIcon, FileText, ChevronDown, ChevronRight, HelpCircle } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { ConversationSidebar } from "./ConversationSidebar";
@@ -65,18 +65,15 @@ export function ChatApp() {
   const [language, setLanguage] = useState("en");
   const [activeView, setActiveView] = useState<"chat" | "resources" | "support">("chat");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [userName, setUserName] = useState("User");
+  const [userName] = useState("User");
   const [selectedGuidebookModel, setSelectedGuidebookModel] = useState<Exclude<ModelType, "AUTO">>("ILO/PENSION");
-  const [isClient, setIsClient] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Ensure component only fully renders on client to avoid hydration mismatch
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  const activeMessages = conversationData[activeConversationId] || [];
+  const activeMessages = useMemo(
+    () => conversationData[activeConversationId] || [],
+    [conversationData, activeConversationId]
+  );
   const currentConversationModel = conversationModelData[activeConversationId] || { model: "AUTO" as ModelType, locked: false };
 
   const scrollToBottom = () => {

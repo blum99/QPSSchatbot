@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import type OpenAI from "openai";
 import { assistantConfig } from "@/config/assistant";
 
+type AssistantUpdateParams = OpenAI.Beta.Assistants.AssistantUpdateParams;
+
 export type AssistantSyncMode = "auto" | "manual";
 
 const assistantConfigHash = crypto
@@ -28,7 +30,7 @@ export async function ensureAssistantConfiguration({
   }
 
   const assistant = await openai.beta.assistants.retrieve(assistantId);
-  const updatePayload: Record<string, any> = {};
+  const updatePayload: Partial<AssistantUpdateParams> = {};
 
   if (assistantConfig.name && assistant.name !== assistantConfig.name) {
     updatePayload.name = assistantConfig.name;

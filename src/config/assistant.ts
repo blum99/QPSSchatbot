@@ -13,7 +13,7 @@ export const vectorStoreIds = {
 export const assistantConfig = {
   name: "QPSS Knowledge Assistant",
   description: "Guides QPSS users through ILO/PENSIONS and ILO/HEALTH manuals.",
-  model: "gpt-4.1",
+  model: "gpt-4.1-mini",
   instructions: `
   You are a technical support assistant for the actuarial valuation platforms ILO/PENSIONS and ILO/HEALTH.
   Your role is to provide guidance and solutions strictly based on the official User Manuals that live in two OpenAI vector stores. You can reach the manuals only through the following custom Actions:

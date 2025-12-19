@@ -23,37 +23,37 @@ const timeFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 const markdownComponents: Components = {
-  h1: ({ node: _node, children, ...props }) => (
+  h1: ({ children, ...props }) => (
     <h1 className="text-lg font-semibold leading-tight" {...props}>
       {children}
     </h1>
   ),
-  h2: ({ node: _node, children, ...props }) => (
+  h2: ({ children, ...props }) => (
     <h2 className="text-base font-semibold leading-tight" {...props}>
       {children}
     </h2>
   ),
-  h3: ({ node: _node, children, ...props }) => (
+  h3: ({ children, ...props }) => (
     <h3 className="text-base font-medium leading-tight" {...props}>
       {children}
     </h3>
   ),
-  p: ({ node: _node, children, ...props }) => (
+  p: ({ children, ...props }) => (
     <p className="mb-2 last:mb-0 leading-relaxed" {...props}>
       {children}
     </p>
   ),
-  strong: ({ node: _node, children, ...props }) => (
+  strong: ({ children, ...props }) => (
     <strong className="font-semibold" {...props}>
       {children}
     </strong>
   ),
-  em: ({ node: _node, children, ...props }) => (
+  em: ({ children, ...props }) => (
     <em className="italic" {...props}>
       {children}
     </em>
   ),
-  a: ({ node: _node, children, ...props }) => (
+  a: ({ children, ...props }) => (
     <a
       className="underline decoration-dashed decoration-current underline-offset-2 hover:opacity-80"
       target="_blank"
@@ -63,27 +63,27 @@ const markdownComponents: Components = {
       {children}
     </a>
   ),
-  ul: ({ node: _node, children, ...props }) => (
+  ul: ({ children, ...props }) => (
     <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0" {...props}>
       {children}
     </ul>
   ),
-  ol: ({ node: _node, children, ...props }) => (
+  ol: ({ children, ...props }) => (
     <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0" {...props}>
       {children}
     </ol>
   ),
-  li: ({ node: _node, children, ...props }) => (
+  li: ({ children, ...props }) => (
     <li className="leading-relaxed" {...props}>
       {children}
     </li>
   ),
-  blockquote: ({ node: _node, children, ...props }) => (
+  blockquote: ({ children, ...props }) => (
     <blockquote className="my-3 border-l-2 border-current/40 pl-3 italic first:mt-0 last:mb-0" {...props}>
       {children}
     </blockquote>
   ),
-  code({ node: _node, inline, children, className, ...props }) {
+  code({ inline, children, className, ...props }) {
     if (inline) {
       return (
         <code className="rounded bg-black/10 px-1 py-0.5 text-sm" {...props}>

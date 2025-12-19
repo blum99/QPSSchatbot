@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, FileText, Settings as SettingsIcon, Plus } from "lucide-react";
+import { Mail, FileText, Plus } from "lucide-react";
 import { SettingsMenu } from "./SettingsMenu";
 
 interface SupportProps {
@@ -54,7 +54,7 @@ export function Support({ theme, onThemeChange, language, onLanguageChange }: Su
                 <div className="flex-1">
                   <h4 className="mb-2 text-gray-900 dark:text-gray-100">Email Support</h4>
                   <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-                    Send us an email and we'll get back to you within 24 hours.
+                    Send us an email and we&apos;ll get back to you within 24 hours.
                   </p>
                   <button
                     onClick={handleEmailSupport}
