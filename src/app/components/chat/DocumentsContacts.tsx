@@ -36,7 +36,7 @@ interface DocumentsContactsProps {
 }
 
 type ResourceTab = "Guidebooks" | "Publications" | "Trainings";
-type ModelType = "ILO/HEALTH" | "ILO/PENSION" | "ILO/SSI" | "ILO/RAP";
+type ModelType = "ILO/HEALTH" | "ILO/PENSIONS" | "ILO/SSI" | "ILO/RAP";
 
 export function DocumentsContacts({ theme, onThemeChange, language, onLanguageChange, selectedGuidebookModel: propSelectedModel, onSelectedGuidebookModelChange }: DocumentsContactsProps) {
   const [activeTab, setActiveTab] = useState<ResourceTab>("Guidebooks");
@@ -72,18 +72,18 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
     },
     {
       id: "4",
-      name: "ILO/PENSION Manual (English)",
-      size: "15",
+      name: "ILO/PENSIONS Manual (English)",
+      size: "11",
       type: "Manual",
-      model: "ILO/PENSION",
+      model: "ILO/PENSIONS",
       filename: "ILO_Pension_en.pdf",
     },
     {
       id: "5",
-      name: "ILO/PENSION Manual (French)",
-      size: "14",
+      name: "ILO/PENSIONS Manual (French)",
+      size: "9",
       type: "Manual",
-      model: "ILO/PENSION",
+      model: "ILO/PENSIONS",
       filename: "ILO_Pension_sp.pdf",
     },
     {
@@ -126,7 +126,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
       year: 1999,
       isbn: "92-2-110649-X",
       size: "28 MB",
-      model: "ILO/PENSION",
+      model: "ILO/PENSIONS",
       filename: "Actuarial_mathematics_of_social_security_pensions_en.pdf",
     },
     {
@@ -138,7 +138,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
       year: 2002,
       isbn: "92-2-110851-3",
       size: "112 MB",
-      model: "ILO/PENSION",
+      model: "ILO/PENSIONS",
       filename: "Actuarial_practice_in_Social_Security_en.pdf",
     },
     {
@@ -200,7 +200,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
   const filteredDocuments = documents.filter((doc) => doc.model === selectedGuidebookModel);
 
   const tabs: ResourceTab[] = ["Guidebooks", "Publications", "Trainings"];
-  const models: ModelType[] = ["ILO/HEALTH", "ILO/PENSION", "ILO/SSI", "ILO/RAP"];
+  const models: ModelType[] = ["ILO/HEALTH", "ILO/PENSIONS", "ILO/SSI", "ILO/RAP"];
 
   return (
     <div className="flex h-full flex-col bg-white dark:bg-[#1A1F2E]">

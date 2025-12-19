@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     await ensureAssistantReady(assistantId);
 
-    const { threadId: existingThreadId, message } = await req.json();
+    const { threadId: existingThreadId, message, model } = await req.json();
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -74,11 +74,34 @@ export async function POST(req: NextRequest) {
       threadId = thread.id;
     }
 
+    // Determine manual from frontend model selection or message text
+    const manualFromModel = inferManualFromModel(model);
     const manualFromMessage = inferManualFromText(message);
     let pendingQuestion: string | null = null;
 
-    if (manualFromMessage) {
-      threadManualMemory.set(threadId, manualFromMessage);
+    console.log("Model from frontend:", model);
+    console.log("Manual from model:", manualFromModel);
+    console.log("Manual from message:", manualFromMessage);
+
+    // Check if user is trying to switch manuals mid-conversation
+    const existingManual = threadManualMemory.get(threadId);
+    if (existingManual && manualFromMessage && manualFromMessage !== existingManual) {
+      // User is asking about a different manual than the conversation is locked to
+      const currentManualName = existingManual === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+      const requestedManualName = manualFromMessage === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+      
+      return NextResponse.json({
+        threadId,
+        reply: `This conversation is currently using the ${currentManualName} manual. To ask questions about ${requestedManualName}, please start a new conversation and select the appropriate tool.`,
+        detectedManual: existingManual,
+      });
+    }
+
+    // Priority: explicit model selection > message inference > thread memory
+    const determinedManual = manualFromModel ?? manualFromMessage;
+
+    if (determinedManual) {
+      threadManualMemory.set(threadId, determinedManual);
 
       // Check if this is just a clarification (e.g., "pensions") and we have a pending question
       if (isManualClarificationOnly(message)) {
@@ -89,7 +112,9 @@ export async function POST(req: NextRequest) {
     }
 
     const manualForRun =
-      manualFromMessage ?? threadManualMemory.get(threadId) ?? null;
+      determinedManual ?? threadManualMemory.get(threadId) ?? null;
+
+    console.log("Final manual for run:", manualForRun);
 
     // If no manual could be determined, store this message as a pending question
     if (!manualForRun) {
@@ -136,6 +161,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       threadId,
       reply: textParts.join("\n\n"),
+      detectedManual: manualForRun,
     });
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err);
@@ -198,9 +224,17 @@ function delay(ms: number) {
 }
 
 function resolveAssistantSyncMode(value?: string | null): AssistantSyncMode {
-  const normalized = value?.trim().toLowerCase();
-  // Default to manual unless explicitly set to auto.
-  return normalized === "auto" ? "auto" : "manual";
+  return value === "auto" ? "auto" : "manual";
+}
+
+function inferManualFromModel(model?: string): ManualKey | null {
+  if (!model || model === "AUTO") return null;
+  
+  const normalizedModel = model.toUpperCase();
+  if (normalizedModel.includes("PENSION")) return "pensions";
+  if (normalizedModel.includes("HEALTH")) return "health";
+  
+  return null;
 }
 
 type ManualKey = keyof typeof vectorStoreIds;
