@@ -1,16 +1,20 @@
 // src/app/api/chat/route.ts
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { vectorStoreIds, assistantConfig } from "@/config/assistant";
 import {
   ensureAssistantConfiguration,
   type AssistantSyncMode,
 } from "@/lib/assistantSync";
 
+const proxyUrl = process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY;
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   organization: process.env.OPENAI_ORGANIZATION,
   project: process.env.OPENAI_PROJECT,
+  ...(proxyUrl && { httpAgent: new HttpsProxyAgent(proxyUrl) }),
 });
 
 const TERMINAL_STATUSES = new Set([
@@ -443,25 +447,7 @@ function buildCacheKey(manualKey: ManualKey, query: string) {
 }
 
 async function executeVectorStoreFetch(vectorStoreId: string, query: string) {
-  const response = await fetch(
-    `https://api.openai.com/v1/vector_stores/${vectorStoreId}/search`,
-    {
-      method: "POST",
-      headers: buildOpenAIHeaders(),
-      body: JSON.stringify({ query }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    const vectorError = new Error(
-      `Vector store search failed (${response.status}): ${errorText || response.statusText}`
-    ) as VectorStoreError;
-    vectorError.status = response.status;
-    throw vectorError;
-  }
-
-  return response.json();
+  return openai.vectorStores.search(vectorStoreId, { query });
 }
 
 function isRetryableVectorError(error: Error) {
@@ -481,25 +467,4 @@ function withJitter(delayMs: number) {
 
 function normalizeQueryKey(query: string) {
   return query.trim().replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").toLowerCase();
-}
-
-function buildOpenAIHeaders() {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("Missing OPENAI_API_KEY for vector store search.");
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    "Content-Type": "application/json",
-  };
-
-  if (process.env.OPENAI_ORGANIZATION) {
-    headers["OpenAI-Organization"] = process.env.OPENAI_ORGANIZATION;
-  }
-
-  if (process.env.OPENAI_PROJECT) {
-    headers["OpenAI-Project"] = process.env.OPENAI_PROJECT;
-  }
-
-  return headers;
 }
