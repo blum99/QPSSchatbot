@@ -203,9 +203,9 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
   const models: ModelType[] = ["ILO/HEALTH", "ILO/PENSIONS", "ILO/SSI", "ILO/RAP"];
 
   return (
-    <div className="flex h-full flex-col bg-white dark:bg-[#1A1F2E]">
+    <div className="flex h-full flex-col bg-white dark:bg-neutral-900">
       {/* Header */}
-      <div className="bg-white px-6 py-6 dark:bg-[#1A1F2E]">
+      <div className="bg-white px-6 py-6 dark:bg-neutral-900">
         <h2 className="text-2xl text-gray-900 dark:text-gray-100">Resources</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Access guidebooks, publications and training opportunities
@@ -213,7 +213,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-[#1A1F2E]">
+      <div className="border-b border-gray-200 bg-white px-6 dark:border-neutral-700 dark:bg-neutral-900">
         <div className="flex gap-8">
           {tabs.map((tab) => (
             <button
@@ -233,7 +233,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
 
       {/* Model Selector - Only show for Guidebooks tab */}
       {activeTab === "Guidebooks" && (
-        <div className="border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-[#1A1F2E]">
+        <div className="border-b border-gray-200 bg-white px-6 py-4 dark:border-neutral-700 dark:bg-neutral-900">
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600 dark:text-gray-400">Tool:</span>
             <div className="flex gap-2">
@@ -244,7 +244,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
                   className={`rounded-lg px-4 py-2 text-sm transition-colors ${
                     selectedGuidebookModel === model
                       ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-neutral-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   }`}
                 >
                   {model}
@@ -256,7 +256,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto bg-white px-6 py-6 dark:bg-[#1A1F2E]">
+      <div className="flex-1 overflow-y-auto bg-white px-6 py-6 dark:bg-neutral-900">
         {activeTab === "Publications" && (
           <div className="mx-auto max-w-4xl">
             {/* Section Header */}
@@ -277,7 +277,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
                 publications.map((pub) => (
                   <div
                     key={pub.id}
-                    className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:shadow-md dark:border-gray-700 dark:bg-[#1E2838] dark:hover:bg-[#252E3E]"
+                    className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
                   >
                     {/* Document Icon */}
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center">
@@ -328,7 +328,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
             </div>
 
             {/* Empty State */}
-            <div className="rounded-lg border border-gray-200 bg-white px-8 py-16 text-center dark:border-gray-700 dark:bg-[#1E2838]">
+            <div className="rounded-lg border border-gray-200 bg-white px-8 py-16 text-center dark:border-neutral-700 dark:bg-neutral-800">
               <p className="mb-2 text-gray-700 dark:text-gray-300">No training materials available yet.</p>
               <p className="text-sm text-gray-500 dark:text-gray-500">Training resources will be added soon.</p>
             </div>
@@ -355,7 +355,7 @@ export function DocumentsContacts({ theme, onThemeChange, language, onLanguageCh
                 filteredDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:shadow-md dark:border-gray-700 dark:bg-[#1E2838] dark:hover:bg-[#252E3E]"
+                    className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
                   >
                     {/* Document Icon */}
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center">

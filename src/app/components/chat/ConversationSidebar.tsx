@@ -1,10 +1,10 @@
 "use client";
 
-import { Plus, MessageSquare, Trash2, Folder as FolderIcon, ChevronDown, ChevronRight, Edit2, Check, X as XIcon, ChevronLeft } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Folder as FolderIcon, ChevronDown, ChevronRight, Edit2, Check, X as XIcon, PanelLeftClose } from "lucide-react";
 import { useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
 import { SettingsMenu } from "./SettingsMenu";
-import type { Conversation, Folder } from "../shared/types";
+import type { Conversation, Folder } from "./shared/types";
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
@@ -43,11 +43,11 @@ function DraggableConversation({ conversation, isActive, onSelect, onDelete }: D
 
   return (
     <div
-      ref={(node) => drag(node)}
+      ref={(node) => { drag(node); }}
       className={`group relative flex cursor-pointer flex-col gap-1 rounded-lg p-2.5 transition-colors ${
         isActive
-          ? "bg-gray-100 dark:bg-gray-800"
-          : "hover:bg-gray-50 dark:hover:bg-gray-800"
+          ? "bg-gray-100 dark:bg-neutral-800"
+          : "hover:bg-gray-50 dark:hover:bg-neutral-800"
       } ${isDragging ? "opacity-50" : "opacity-100"}`}
       onClick={onSelect}
     >
@@ -107,9 +107,9 @@ function DroppableFolder({ folder, onToggle, onDelete, onDrop, onRename, childre
   return (
     <div>
       <div
-        ref={(node) => drop(node)}
+        ref={(node) => { drop(node); }}
         className={`group flex items-center gap-2 rounded-lg p-2 transition-colors ${
-          isOver ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-gray-50 dark:hover:bg-gray-800"
+          isOver ? "bg-blue-50 dark:bg-blue-900/20" : "hover:bg-gray-50 dark:hover:bg-neutral-800"
         }`}
       >
         <button onClick={onToggle} className="flex flex-1 items-center gap-2">
@@ -133,7 +133,7 @@ function DroppableFolder({ folder, onToggle, onDelete, onDrop, onRename, childre
                 }
               }}
               onClick={(e) => e.stopPropagation()}
-              className="flex-1 rounded border border-blue-500 bg-white px-2 py-0.5 text-sm text-gray-900 outline-none dark:bg-gray-700 dark:text-gray-100"
+              className="flex-1 rounded border border-blue-500 bg-white px-2 py-0.5 text-sm text-gray-900 outline-none dark:bg-neutral-700 dark:text-gray-100"
               autoFocus
             />
           ) : (
@@ -149,7 +149,7 @@ function DroppableFolder({ folder, onToggle, onDelete, onDrop, onRename, childre
                 e.stopPropagation();
                 setIsEditing(true);
               }}
-              className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+              className="rounded p-1 hover:bg-gray-200 dark:hover:bg-neutral-700"
             >
               <Edit2 className="h-3 w-3 text-gray-500 dark:text-gray-400" />
             </button>
@@ -159,7 +159,7 @@ function DroppableFolder({ folder, onToggle, onDelete, onDrop, onRename, childre
               e.stopPropagation();
               onDelete();
             }}
-            className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+            className="rounded p-1 hover:bg-gray-200 dark:hover:bg-neutral-700"
           >
             <Trash2 className="h-3 w-3 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400" />
           </button>
@@ -221,16 +221,16 @@ export function ConversationSidebar({
   }));
 
   return (
-    <div className="flex h-full flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-[#1A1F2E]">
+    <div className="flex h-full flex-col border-r border-gray-200 bg-white dark:border-neutral-700 dark:bg-neutral-900">
       {/* Collapse Button */}
       {onToggleSidebar && (
-        <div className="border-b border-gray-200 p-3 dark:border-gray-700">
+        <div className="flex justify-end border-b border-gray-200 p-3 dark:border-neutral-700">
           <button
             onClick={onToggleSidebar}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-neutral-800"
             aria-label="Close sidebar"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <PanelLeftClose className="h-5 w-5" />
           </button>
         </div>
       )}
@@ -239,7 +239,7 @@ export function ConversationSidebar({
       <div className="p-3">
         <button
           onClick={onNewConversation}
-          className="flex w-full items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="flex w-full items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700"
         >
           <Plus className="h-4 w-4" />
           <span>New chat</span>
@@ -247,7 +247,7 @@ export function ConversationSidebar({
       </div>
 
       {/* Divider */}
-      <div className="border-t border-gray-200 dark:border-gray-700"></div>
+      <div className="border-t border-gray-200 dark:border-neutral-700"></div>
 
       {/* Conversations List */}
       <div className="flex-1 overflow-y-auto p-2">
@@ -283,7 +283,7 @@ export function ConversationSidebar({
 
             {/* Create Folder Button/Input */}
             {isCreatingFolder ? (
-              <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-2 dark:bg-gray-800">
+              <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-2 dark:bg-neutral-800">
                 <FolderIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 <input
                   type="text"
@@ -297,12 +297,12 @@ export function ConversationSidebar({
                     }
                   }}
                   placeholder="Folder name..."
-                  className="flex-1 rounded border border-blue-500 bg-white px-2 py-1 text-sm text-gray-900 outline-none dark:bg-gray-700 dark:text-gray-100"
+                  className="flex-1 rounded border border-blue-500 bg-white px-2 py-1 text-sm text-gray-900 outline-none dark:bg-neutral-700 dark:text-gray-100"
                   autoFocus
                 />
                 <button
                   onClick={handleCreateFolder}
-                  className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  className="rounded p-1 hover:bg-gray-200 dark:hover:bg-neutral-700"
                 >
                   <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                 </button>
@@ -311,7 +311,7 @@ export function ConversationSidebar({
                     setNewFolderName("");
                     setIsCreatingFolder(false);
                   }}
-                  className="rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  className="rounded p-1 hover:bg-gray-200 dark:hover:bg-neutral-700"
                 >
                   <XIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 </button>
@@ -319,7 +319,7 @@ export function ConversationSidebar({
             ) : (
               <button
                 onClick={() => setIsCreatingFolder(true)}
-                className="flex w-full items-center gap-2 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="flex w-full items-center gap-2 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-neutral-800"
               >
                 <Plus className="h-4 w-4" />
                 <span className="text-sm">New folder</span>
@@ -330,7 +330,7 @@ export function ConversationSidebar({
             {uncategorizedConversations.length > 0 && (
               <div>
                 <div
-                  ref={(node) => dropUncategorized(node)}
+                  ref={(node) => { dropUncategorized(node); }}
                   className={`mb-1 rounded-lg p-2 text-xs text-gray-500 dark:text-gray-400 ${
                     isOverUncategorized ? "bg-blue-50 dark:bg-blue-900/20" : ""
                   }`}
@@ -355,7 +355,7 @@ export function ConversationSidebar({
       </div>
 
       {/* Settings */}
-      <div className="border-t border-gray-200 p-2 dark:border-gray-700">
+      <div className="border-t border-gray-200 p-2 dark:border-neutral-700">
         <SettingsMenu 
           theme={theme}
           onThemeChange={onThemeChange}

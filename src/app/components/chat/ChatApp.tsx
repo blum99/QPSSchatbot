@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { ArrowUp, User, LogOut, Settings as SettingsIcon, FileText, ChevronDown, ChevronRight, HelpCircle } from "lucide-react";
+import { ArrowUp, User, LogOut, Settings as SettingsIcon, FileText, ChevronDown, PanelLeftOpen, HelpCircle } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { DocumentsContacts } from "./DocumentsContacts";
@@ -9,7 +9,7 @@ import { Support } from "./Support";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import Image from "next/image";
-import type { Message, Conversation, Folder } from "../shared/types";
+import type { Message, Conversation, Folder } from "./shared/types";
 
 // Use a fixed timestamp to avoid hydration mismatch
 const INITIAL_TIMESTAMP = new Date('2024-01-01T12:00:00Z');
@@ -17,7 +17,7 @@ const INITIAL_TIMESTAMP = new Date('2024-01-01T12:00:00Z');
 const initialMessages: Message[] = [
   {
     id: "1",
-    text: "Hello! I'm your QPSS AI assistant. How can I help you today?",
+    text: "Hello! I'm your QPSS AI assistant. You can use the Tool selector above the message box to choose a specific guidebook for our conversation, or leave it on AUTO to let me select it for you. How can I help you today?",
     sender: "bot",
     timestamp: INITIAL_TIMESTAMP,
   },
@@ -41,7 +41,7 @@ export function ChatApp() {
     {
       id: "1",
       title: "New Conversation",
-      lastMessage: "Hello! I'm your QPSS AI assistant...",
+      lastMessage: "Hello! I'm your QPSS AI assistant. You can use...",
       timestamp: INITIAL_TIMESTAMP,
     },
   ]);
@@ -64,11 +64,8 @@ export function ChatApp() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [language, setLanguage] = useState("en");
   const [activeView, setActiveView] = useState<"chat" | "resources" | "support">("chat");
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [userName] = useState("User");
   const [selectedGuidebookModel, setSelectedGuidebookModel] = useState<Exclude<ModelType, "AUTO">>("ILO/PENSIONS");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const activeMessages = useMemo(
     () => conversationData[activeConversationId] || [],
@@ -85,25 +82,9 @@ export function ChatApp() {
   }, [activeMessages, isTyping]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    };
-
-    if (userMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [userMenuOpen]);
-
-  useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      
+
       const newWidth = e.clientX;
       if (newWidth >= 200 && newWidth <= 500) {
         setSidebarWidth(newWidth);
@@ -141,17 +122,17 @@ export function ChatApp() {
         },
       }));
 
-      const modelPrefix = currentConversationModel.model === "AUTO" 
-        ? "AUTO" 
+      const modelPrefix = currentConversationModel.model === "AUTO"
+        ? "AUTO"
         : currentConversationModel.model.split("/")[1];
-      
+
       setConversations((prev) =>
         prev.map((conv) =>
           conv.id === activeConversationId
             ? {
-                ...conv,
-                title: `${modelPrefix}-${inputValue.substring(0, 30)}${inputValue.length > 30 ? "..." : ""}`,
-              }
+              ...conv,
+              title: `${modelPrefix}-${inputValue.substring(0, 30)}${inputValue.length > 30 ? "..." : ""}`,
+            }
             : conv
         )
       );
@@ -173,10 +154,10 @@ export function ChatApp() {
       prev.map((conv) =>
         conv.id === activeConversationId
           ? {
-              ...conv,
-              lastMessage: inputValue.substring(0, 50) + (inputValue.length > 50 ? "..." : ""),
-              timestamp: new Date(),
-            }
+            ...conv,
+            lastMessage: inputValue.substring(0, 50) + (inputValue.length > 50 ? "..." : ""),
+            timestamp: new Date(),
+          }
           : conv
       )
     );
@@ -225,6 +206,18 @@ export function ChatApp() {
             locked: true,
           },
         }));
+
+        setConversations((prev) =>
+          prev.map((conv) => {
+            if (conv.id === activeConversationId && conv.title?.startsWith("AUTO-")) {
+              return {
+                ...conv,
+                title: conv.title.replace("AUTO-", `${detectedModel.split("/")[1]}-`),
+              };
+            }
+            return conv;
+          })
+        );
       }
 
       const botMessage: Message = {
@@ -246,21 +239,21 @@ export function ChatApp() {
         prev.map((conv) =>
           conv.id === activeConversationId
             ? {
-                ...conv,
-                threadId: data.threadId ?? conv.threadId,
-                lastMessage: botMessage.text.substring(0, 50) + (botMessage.text.length > 50 ? "..." : ""),
-                timestamp: new Date(),
-              }
+              ...conv,
+              threadId: data.threadId ?? conv.threadId,
+              lastMessage: botMessage.text.substring(0, 50) + (botMessage.text.length > 50 ? "..." : ""),
+              timestamp: new Date(),
+            }
             : conv
         )
       );
     } catch (error) {
       console.error("Error sending message:", error);
-      
+
       // Check if it's a rate limit error and extract wait time
       const errorText = error instanceof Error ? error.message : String(error);
       const isRateLimit = errorText.includes("Rate limit") || errorText.includes("rate_limit");
-      
+
       let waitTime = "10-15 seconds";
       if (isRateLimit) {
         // Try to extract precise wait time from error message
@@ -270,10 +263,10 @@ export function ChatApp() {
           waitTime = `${seconds} seconds`;
         }
       }
-      
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: isRateLimit 
+        text: isRateLimit
           ? `⏱️ Rate limit reached. Please wait ${waitTime} before sending another message.`
           : "Sorry, I encountered an error. Please try again.",
         sender: "bot",
@@ -289,10 +282,10 @@ export function ChatApp() {
         prev.map((conv) =>
           conv.id === activeConversationId
             ? {
-                ...conv,
-                lastMessage: errorMessage.text.substring(0, 50) + "...",
-                timestamp: new Date(),
-              }
+              ...conv,
+              lastMessage: errorMessage.text.substring(0, 50) + "...",
+              timestamp: new Date(),
+            }
             : conv
         )
       );
@@ -312,7 +305,7 @@ export function ChatApp() {
     const newId = Date.now().toString();
     const welcomeMessage: Message = {
       id: `${newId}-1`,
-      text: "Hello! I'm your QPSS AI assistant. How can I help you today?",
+      text: "Hello! I'm your QPSS AI assistant. You can use the Tool selector above the message box to choose a specific guidebook for our conversation, or leave it on AUTO to let me select it for you. How can I help you today?",
       sender: "bot",
       timestamp: new Date(),
     };
@@ -321,7 +314,7 @@ export function ChatApp() {
       {
         id: newId,
         title: "New Conversation",
-        lastMessage: "Hello! I'm your QPSS AI assistant...",
+        lastMessage: "Hello! I'm your QPSS AI assistant. You can use...",
         timestamp: new Date(),
       },
       ...prev,
@@ -435,7 +428,7 @@ export function ChatApp() {
   const handleOpenResources = () => {
     // Determine which tool to select in Resources
     const currentModel = currentConversationModel.model;
-    
+
     // If AUTO or not locked, default to ILO/PENSIONS
     // Otherwise use the committed tool
     if (currentModel === "AUTO" || !currentConversationModel.locked) {
@@ -443,7 +436,7 @@ export function ChatApp() {
     } else {
       setSelectedGuidebookModel(currentModel as Exclude<ModelType, "AUTO">);
     }
-    
+
     setActiveView("resources");
   };
 
@@ -452,9 +445,9 @@ export function ChatApp() {
   return (
     <DndProvider backend={HTML5Backend}>
       <div suppressHydrationWarning className={`flex h-screen flex-col overflow-hidden ${theme === "dark" ? "dark" : ""}`}>
-        <div className="flex h-full flex-col bg-white dark:bg-[#1A1F2E]">
-          {/* Header - Deep Purple - Full Width */}
-          <div className="bg-[#2D1B69] px-6 py-4">
+        <div className="flex h-full flex-col bg-white dark:bg-neutral-900">
+          {/* Header - Top Panel - Full Width */}
+          <div className="bg-[#4A5568] px-6 py-4">
             <div className="flex items-center justify-between">
               {/* Left: Logo and Title */}
               <div className="flex items-center gap-3">
@@ -463,8 +456,8 @@ export function ChatApp() {
                 </div>
                 <div>
                   <h1 className="text-white">QPSS Assistant</h1>
-                  <p className="text-xs text-purple-200">
-                    ILO Modelling & Analysis Support Assistant
+                  <p className="text-xs text-gray-200">
+                    Offering support for ILO QPSS models
                   </p>
                 </div>
               </div>
@@ -473,113 +466,42 @@ export function ChatApp() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveView("chat")}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-colors ${
-                    activeView === "chat"
-                      ? "bg-white text-purple-900"
-                      : "text-white hover:bg-purple-800"
-                  }`}
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors ${activeView === "chat"
+                    ? "border-white bg-white text-gray-900"
+                    : "border-gray-500 text-white hover:border-gray-400 hover:bg-gray-700"
+                    }`}
                 >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className={`h-4 w-4 ${activeView === "chat" ? "text-blue-600" : "text-blue-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
                   Chat
                 </button>
                 <button
                   onClick={() => setActiveView("resources")}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-colors ${
-                    activeView === "resources"
-                      ? "bg-white text-purple-900"
-                      : "text-white hover:bg-purple-800"
-                  }`}
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors ${activeView === "resources"
+                    ? "border-white bg-white text-gray-900"
+                    : "border-gray-500 text-white hover:border-gray-400 hover:bg-gray-700"
+                    }`}
                 >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className={`h-4 w-4 ${activeView === "resources" ? "text-blue-600" : "text-blue-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z" />
                   </svg>
                   Resources
                 </button>
                 <button
                   onClick={() => setActiveView("support")}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm transition-colors ${
-                    activeView === "support"
-                      ? "bg-white text-purple-900"
-                      : "text-white hover:bg-purple-800"
-                  }`}
+                  className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors ${activeView === "support"
+                    ? "border-white bg-white text-gray-900"
+                    : "border-gray-500 text-white hover:border-gray-400 hover:bg-gray-700"
+                    }`}
                 >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className={`h-4 w-4 ${activeView === "support" ? "text-blue-600" : "text-blue-400"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" />
                     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
                     <line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
                   Support
                 </button>
-
-                {/* User Menu */}
-                <div className="relative" ref={userMenuRef}>
-                  <button
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-white transition-colors hover:bg-purple-800"
-                  >
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600">
-                      <User className="h-4 w-4" />
-                    </div>
-                    <span className="text-sm">{userName}</span>
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {userMenuOpen && (
-                    <div className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                      <div className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white">
-                            <User className="h-6 w-6" />
-                          </div>
-                          <div>
-                            <p className="text-gray-900 dark:text-gray-100">{userName}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              john.doe@ilo.org
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="border-t border-gray-200 dark:border-gray-700"></div>
-                      <div className="p-2">
-                        <button
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            alert("Profile settings coming soon");
-                          }}
-                          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                        >
-                          <SettingsIcon className="h-4 w-4" />
-                          <span>Profile Settings</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            alert("Help desk message feature coming soon");
-                          }}
-                          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                        >
-                          <HelpCircle className="h-4 w-4" />
-                          <span>Contact Help Desk</span>
-                        </button>
-                      </div>
-                      <div className="border-t border-gray-200 p-2 dark:border-gray-700">
-                        <button
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            alert("Logged out successfully");
-                          }}
-                          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          <span>Log Out</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -612,11 +534,11 @@ export function ChatApp() {
                     onToggleSidebar={() => setSidebarOpen(false)}
                   />
                 </div>
-                
+
                 {/* Resize Handle */}
                 <div
                   onMouseDown={() => setIsResizing(true)}
-                  className="w-1 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400 dark:bg-gray-700 dark:hover:bg-blue-600"
+                  className="w-1 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-400 dark:bg-neutral-700 dark:hover:bg-blue-600"
                   aria-label="Resize sidebar"
                 />
               </>
@@ -629,19 +551,19 @@ export function ChatApp() {
                 <>
                   {/* Open Sidebar Button */}
                   {!sidebarOpen && (
-                    <div className="border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-[#1A1F2E]">
+                    <div className="border-b border-gray-200 bg-white px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900">
                       <button
                         onClick={() => setSidebarOpen(true)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-neutral-800"
                         aria-label="Open sidebar"
                       >
-                        <ChevronRight className="h-5 w-5" />
+                        <PanelLeftOpen className="h-5 w-5" />
                       </button>
                     </div>
                   )}
 
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto bg-white px-4 py-6 dark:bg-[#1A1F2E]">
+                  <div className="flex-1 overflow-y-auto bg-white px-4 py-6 dark:bg-neutral-900">
                     <div className="mx-auto max-w-4xl space-y-4">
                       {activeMessages.map((message) => (
                         <ChatMessage key={message.id} message={message} />
@@ -663,7 +585,7 @@ export function ChatApp() {
                   </div>
 
                   {/* Input Area */}
-                  <div className="border-t border-gray-200 bg-white px-4 py-4 dark:border-gray-700 dark:bg-[#4A5568]">
+                  <div className="border-t border-gray-200 bg-white px-4 py-4 dark:border-neutral-700 dark:bg-[#4A5568]">
                     <div className="mx-auto max-w-4xl">
                       {/* Model Selector or Locked Message */}
                       {!currentConversationModel.locked ? (
@@ -677,13 +599,12 @@ export function ChatApp() {
                                   key={model}
                                   onClick={() => !isDisabled && handleModelSelect(model)}
                                   disabled={isDisabled}
-                                  className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                                    isDisabled
-                                      ? "cursor-not-allowed bg-gray-200 text-gray-400 opacity-50 dark:bg-gray-700 dark:text-gray-500"
-                                      : currentConversationModel.model === model
+                                  className={`rounded-full px-3 py-1 text-sm transition-colors ${isDisabled
+                                    ? "cursor-not-allowed bg-gray-200 text-gray-400 opacity-50 dark:bg-neutral-700 dark:text-gray-500"
+                                    : currentConversationModel.model === model
                                       ? "bg-blue-600 text-white"
                                       : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
-                                  }`}
+                                    }`}
                                 >
                                   {model}
                                 </button>
@@ -727,7 +648,7 @@ export function ChatApp() {
                           onChange={(e) => setInputValue(e.target.value)}
                           onKeyPress={handleKeyPress}
                           placeholder="Type your message..."
-                          className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
+                          className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition-all placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-neutral-700 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
                         />
                         <button
                           onClick={handleSend}
@@ -739,7 +660,7 @@ export function ChatApp() {
                         {/* Help Button - to the right of Send */}
                         <button
                           onClick={handleOpenResources}
-                          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-200 text-gray-700 transition-all hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                          className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-200 text-gray-700 transition-all hover:bg-gray-300 dark:bg-neutral-700 dark:text-gray-300 dark:hover:bg-gray-600"
                           aria-label="Open Resources"
                         >
                           <FileText className="h-5 w-5" />
@@ -749,10 +670,10 @@ export function ChatApp() {
                   </div>
                 </>
               ) : activeView === "resources" ? (
-                <DocumentsContacts 
-                  theme={theme} 
-                  onThemeChange={setTheme} 
-                  language={language} 
+                <DocumentsContacts
+                  theme={theme}
+                  onThemeChange={setTheme}
+                  language={language}
                   onLanguageChange={setLanguage}
                   selectedGuidebookModel={selectedGuidebookModel}
                   onSelectedGuidebookModelChange={setSelectedGuidebookModel}

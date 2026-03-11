@@ -83,8 +83,9 @@ const markdownComponents: Components = {
       {children}
     </blockquote>
   ),
-  code({ inline, children, className, ...props }) {
-    if (inline) {
+  code({ children, className, node, ...props }: any) {
+    const match = /language-(\w+)/.exec(className || '');
+    if (!match && !className?.includes('language-')) {
       return (
         <code className="rounded bg-black/10 px-1 py-0.5 text-sm" {...props}>
           {children}
@@ -108,7 +109,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
     <div className={`flex gap-3 ${isBot ? "" : "flex-row-reverse"}`}>
       <div
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-          isBot ? "bg-white shadow-sm" : "bg-gray-200 dark:bg-gray-700"
+          isBot ? "bg-white shadow-sm" : "bg-gray-200 dark:bg-neutral-700"
         }`}
       >
         {isBot ? (
@@ -120,7 +121,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
       <div
         className={`max-w-[85%] rounded-2xl px-4 py-2 ${
           isBot
-            ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+            ? "bg-gray-100 text-gray-900 dark:bg-neutral-800 dark:text-gray-100"
             : "bg-blue-600 text-white dark:bg-blue-500"
         }`}
       >

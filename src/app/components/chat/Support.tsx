@@ -20,9 +20,9 @@ export function Support({ theme, onThemeChange, language, onLanguageChange }: Su
   };
 
   return (
-    <div className="flex h-full flex-col bg-white dark:bg-[#1A1F2E]">
+    <div className="flex h-full flex-col bg-white dark:bg-neutral-900">
       {/* Header */}
-      <div className="bg-white px-6 py-6 dark:bg-[#1A1F2E]">
+      <div className="bg-white px-6 py-6 dark:bg-neutral-900">
         <h2 className="text-2xl text-gray-900 dark:text-gray-100">Support</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Get help and contact our support team
@@ -30,7 +30,7 @@ export function Support({ theme, onThemeChange, language, onLanguageChange }: Su
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto bg-white px-6 py-8 dark:bg-[#1A1F2E]">
+      <div className="flex-1 overflow-y-auto bg-white px-6 py-8 dark:bg-neutral-900">
         <div className="mx-auto max-w-2xl">
           {/* Help Desk Title */}
           <div className="mb-8 text-center">
@@ -43,7 +43,7 @@ export function Support({ theme, onThemeChange, language, onLanguageChange }: Su
           {/* Support Options */}
           <div className="space-y-4">
             {/* Email Support Card */}
-            <div className="rounded-lg border border-gray-200 bg-white p-6 transition-all hover:shadow-md dark:border-gray-700 dark:bg-[#1E2838]">
+            <div className="rounded-lg border border-gray-200 bg-white p-6 transition-all hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800">
               <div className="flex items-start gap-4">
                 {/* Icon */}
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
@@ -54,7 +54,7 @@ export function Support({ theme, onThemeChange, language, onLanguageChange }: Su
                 <div className="flex-1">
                   <h4 className="mb-2 text-gray-900 dark:text-gray-100">Email Support</h4>
                   <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-                    Send us an email and we&apos;ll get back to you within 24 hours.
+                    Send us an email and we&apos;ll get back to you within 48 hours.
                   </p>
                   <button
                     onClick={handleEmailSupport}
@@ -67,7 +67,7 @@ export function Support({ theme, onThemeChange, language, onLanguageChange }: Su
             </div>
 
             {/* Submit a Ticket Card */}
-            <div className="rounded-lg border border-gray-200 bg-white p-6 transition-all hover:shadow-md dark:border-gray-700 dark:bg-[#1E2838]">
+            <div className="rounded-lg border border-gray-200 bg-white p-6 transition-all hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800">
               <div className="flex items-start gap-4">
                 {/* Icon */}
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
