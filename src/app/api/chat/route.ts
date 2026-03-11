@@ -20,6 +20,16 @@ async function createOpenAIClient() {
 
 type ManualKey = keyof typeof vectorStoreIds;
 
+// Evict the oldest entry once the map exceeds this size to prevent unbounded
+// growth in long-running server instances.
+const MAP_MAX_SIZE = 1000;
+function setWithEviction<K, V>(map: Map<K, V>, key: K, value: V): void {
+  if (map.size >= MAP_MAX_SIZE) {
+    map.delete(map.keys().next().value as K);
+  }
+  map.set(key, value);
+}
+
 const conversationManualMemory = new Map<string, ManualKey>();
 const conversationPendingQuestion = new Map<string, string>();
 const manualSelectionPrompt =
@@ -39,6 +49,13 @@ export async function POST(req: NextRequest) {
     if (!message || typeof message !== "string") {
       return NextResponse.json(
         { error: "Missing 'message' in request body" },
+        { status: 400 }
+      );
+    }
+
+    if (message.length > 10_000) {
+      return NextResponse.json(
+        { error: "Message exceeds maximum allowed length" },
         { status: 400 }
       );
     }
@@ -70,7 +87,7 @@ export async function POST(req: NextRequest) {
     const determinedManual = manualFromModel ?? manualFromMessage;
 
     if (determinedManual && previousResponseId) {
-      conversationManualMemory.set(previousResponseId, determinedManual);
+      setWithEviction(conversationManualMemory, previousResponseId, determinedManual);
       if (isManualClarificationOnly(message)) {
         pendingQuestion = conversationPendingQuestion.get(previousResponseId) ?? null;
       }
@@ -85,7 +102,7 @@ export async function POST(req: NextRequest) {
     console.log("Final manual for run:", manualForRun);
 
     if (!manualForRun && previousResponseId) {
-      conversationPendingQuestion.set(previousResponseId, message);
+      setWithEviction(conversationPendingQuestion, previousResponseId, message);
     }
 
     // Build per-call instructions
@@ -114,16 +131,16 @@ export async function POST(req: NextRequest) {
     // Transfer conversation state to the new response ID
     if (previousResponseId) {
       if (manualForRun) {
-        conversationManualMemory.set(newResponseId, manualForRun);
+        setWithEviction(conversationManualMemory, newResponseId, manualForRun);
         conversationManualMemory.delete(previousResponseId);
       }
       const pending = conversationPendingQuestion.get(previousResponseId);
       if (pending) {
-        conversationPendingQuestion.set(newResponseId, pending);
+        setWithEviction(conversationPendingQuestion, newResponseId, pending);
         conversationPendingQuestion.delete(previousResponseId);
       }
     } else if (determinedManual) {
-      conversationManualMemory.set(newResponseId, determinedManual);
+      setWithEviction(conversationManualMemory, newResponseId, determinedManual);
     }
 
     // Extract text content from response
