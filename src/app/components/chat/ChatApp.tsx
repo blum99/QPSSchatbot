@@ -14,6 +14,17 @@ import type { Message, Conversation, Folder } from "./shared/types";
 // Use a fixed timestamp to avoid hydration mismatch
 const INITIAL_TIMESTAMP = new Date('2024-01-01T12:00:00Z');
 
+// Strip common markdown formatting for use in plain-text previews
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, '')   // remove heading markers
+    .replace(/\*\*(.+?)\*\*/g, '$1') // remove bold
+    .replace(/\*(.+?)\*/g, '$1')    // remove italic
+    .replace(/`(.+?)`/g, '$1')      // remove inline code
+    .replace(/^>\s*/gm, '')         // remove blockquotes
+    .trim();
+}
+
 const initialMessages: Message[] = [
   {
     id: "1",
@@ -66,6 +77,76 @@ export function ChatApp() {
   const [activeView, setActiveView] = useState<"chat" | "resources" | "support">("chat");
   const [selectedGuidebookModel, setSelectedGuidebookModel] = useState<Exclude<ModelType, "AUTO">>("ILO/PENSIONS");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    // Load from localStorage on mount
+    try {
+      const savedTheme = localStorage.getItem("qpss_theme");
+      if (savedTheme === "light" || savedTheme === "dark") setTheme(savedTheme as "light" | "dark");
+
+      const savedLanguage = localStorage.getItem("qpss_language");
+      if (savedLanguage) setLanguage(savedLanguage);
+
+      let revivedConversations: any[] = [];
+      const savedConversations = localStorage.getItem("qpss_conversations");
+      if (savedConversations) {
+        revivedConversations = JSON.parse(savedConversations).map((c: any) => ({
+          ...c,
+          timestamp: new Date(c.timestamp)
+        }));
+        setConversations(revivedConversations);
+      }
+
+      const savedFolders = localStorage.getItem("qpss_folders");
+      if (savedFolders) {
+        setFolders(JSON.parse(savedFolders).map((f: any) => ({
+          ...f,
+          createdAt: new Date(f.createdAt)
+        })));
+      }
+
+      const savedData = localStorage.getItem("qpss_conversationData");
+      if (savedData) {
+        const parsedData = JSON.parse(savedData);
+        const revivedData: ConversationData = {};
+        for (const key in parsedData) {
+          revivedData[key] = parsedData[key].map((m: any) => ({
+            ...m,
+            timestamp: new Date(m.timestamp)
+          }));
+        }
+        setConversationData(revivedData);
+      }
+
+      const savedModelData = localStorage.getItem("qpss_conversationModelData");
+      if (savedModelData) setConversationModelData(JSON.parse(savedModelData));
+
+      const savedActiveId = localStorage.getItem("qpss_activeConversationId");
+      if (savedActiveId) {
+        if (revivedConversations.length > 0) {
+          if (revivedConversations.some((c) => c.id === savedActiveId)) {
+            setActiveConversationId(savedActiveId);
+          } else {
+            setActiveConversationId(revivedConversations[0].id);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error loading data from localStorage:", e);
+    }
+    
+    setIsLoaded(true);
+  }, []);
+
+  // Save to localStorage when state changes (only after initial load)
+  useEffect(() => { if (isLoaded) localStorage.setItem("qpss_theme", theme); }, [theme, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem("qpss_language", language); }, [language, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem("qpss_conversations", JSON.stringify(conversations)); }, [conversations, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem("qpss_folders", JSON.stringify(folders)); }, [folders, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem("qpss_conversationData", JSON.stringify(conversationData)); }, [conversationData, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem("qpss_conversationModelData", JSON.stringify(conversationModelData)); }, [conversationModelData, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem("qpss_activeConversationId", activeConversationId); }, [activeConversationId, isLoaded]);
 
   const activeMessages = useMemo(
     () => conversationData[activeConversationId] || [],
@@ -207,6 +288,7 @@ export function ChatApp() {
           },
         }));
 
+        // Update title: replace AUTO- prefix with the detected tool prefix
         setConversations((prev) =>
           prev.map((conv) => {
             if (conv.id === activeConversationId && conv.title?.startsWith("AUTO-")) {
@@ -235,13 +317,14 @@ export function ChatApp() {
         [activeConversationId]: [...(prev[activeConversationId] || []), botMessage],
       }));
 
+      const previewText = stripMarkdown(botMessage.text);
       setConversations((prev) =>
         prev.map((conv) =>
           conv.id === activeConversationId
             ? {
               ...conv,
               threadId: data.threadId ?? conv.threadId,
-              lastMessage: botMessage.text.substring(0, 50) + (botMessage.text.length > 50 ? "..." : ""),
+              lastMessage: previewText.substring(0, 50) + (previewText.length > 50 ? "..." : ""),
               timestamp: new Date(),
             }
             : conv
@@ -441,6 +524,10 @@ export function ChatApp() {
   };
 
   const models: ModelType[] = ["AUTO", "ILO/HEALTH", "ILO/PENSIONS", "ILO/SSI", "ILO/RAP"];
+
+  if (!isLoaded) {
+    return null; // Prevent hydration mismatch and hide initial flash while loading from localStorage
+  }
 
   return (
     <DndProvider backend={HTML5Backend}>

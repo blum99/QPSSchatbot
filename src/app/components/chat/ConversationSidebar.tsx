@@ -235,14 +235,24 @@ export function ConversationSidebar({
         </div>
       )}
 
-      {/* New Chat Button */}
-      <div className="p-3">
+      {/* Action Buttons: New Chat + New Folder */}
+      <div className="flex gap-2 p-3">
         <button
           onClick={onNewConversation}
-          className="flex w-full items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700"
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700"
         >
           <Plus className="h-4 w-4" />
           <span>New chat</span>
+        </button>
+        <button
+          onClick={() => setIsCreatingFolder(true)}
+          title="New folder"
+          className="flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700"
+        >
+          <span className="relative">
+            <FolderIcon className="h-4 w-4" />
+            <span className="absolute -right-1 -top-1.5 text-[9px] font-bold leading-none">+</span>
+          </span>
         </button>
       </div>
 
@@ -281,8 +291,8 @@ export function ConversationSidebar({
               </DroppableFolder>
             ))}
 
-            {/* Create Folder Button/Input */}
-            {isCreatingFolder ? (
+            {/* Create Folder Input (shown inline when creating) */}
+            {isCreatingFolder && (
               <div className="flex items-center gap-2 rounded-lg bg-gray-50 p-2 dark:bg-neutral-800">
                 <FolderIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 <input
@@ -316,14 +326,6 @@ export function ConversationSidebar({
                   <XIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 </button>
               </div>
-            ) : (
-              <button
-                onClick={() => setIsCreatingFolder(true)}
-                className="flex w-full items-center gap-2 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-neutral-800"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="text-sm">New folder</span>
-              </button>
             )}
 
             {/* Uncategorized Conversations */}
