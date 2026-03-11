@@ -1,56 +1,32 @@
 // src/app/api/chat/route.ts
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
-import { HttpsProxyAgent } from "https-proxy-agent";
 import { vectorStoreIds, assistantConfig } from "@/config/assistant";
-import {
-  ensureAssistantConfiguration,
-  type AssistantSyncMode,
-} from "@/lib/assistantSync";
 
 const proxyUrl = process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  organization: process.env.OPENAI_ORGANIZATION,
-  project: process.env.OPENAI_PROJECT,
-  ...(proxyUrl && { httpAgent: new HttpsProxyAgent(proxyUrl) }),
-});
+async function createOpenAIClient() {
+  const options: ConstructorParameters<typeof OpenAI>[0] = {
+    apiKey: process.env.OPENAI_API_KEY,
+    organization: process.env.OPENAI_ORGANIZATION,
+    project: process.env.OPENAI_PROJECT,
+  };
+  if (proxyUrl) {
+    const { HttpsProxyAgent } = await import("https-proxy-agent");
+    options.httpAgent = new HttpsProxyAgent(proxyUrl);
+  }
+  return new OpenAI(options);
+}
 
-const TERMINAL_STATUSES = new Set([
-  "completed",
-  "failed",
-  "cancelled",
-  "expired",
-]);
+type ManualKey = keyof typeof vectorStoreIds;
 
-const assistantSyncMode = resolveAssistantSyncMode(
-  process.env.OPENAI_ASSISTANT_SYNC_MODE
-);
-const threadManualMemory = new Map<string, ManualKey>();
-const threadPendingQuestion = new Map<string, string>();
-const manualActionMap = {
-  searchPensionsManual: "pensions",
-  searchHealthManual: "health",
-} as const;
-const vectorSearchCache = new Map<string, VectorSearchCacheEntry>();
-const VECTOR_SEARCH_CACHE_TTL_MS = 60_000;
-const VECTOR_SEARCH_MAX_ATTEMPTS = 3;
-const VECTOR_SEARCH_BASE_DELAY_MS = 500;
+const conversationManualMemory = new Map<string, ManualKey>();
+const conversationPendingQuestion = new Map<string, string>();
 const manualSelectionPrompt =
-  "The backend could not determine whether this conversation is about ILO/PENSIONS or ILO/HEALTH. Ask the user to clarify before calling searchPensionsManual or searchHealthManual. Do not invoke either Action until the correct manual is confirmed.";
-let assistantSetupPromise: Promise<void> | null = null;
-let manualSyncModeLogged = false;
+  "The backend could not determine whether this conversation is about ILO/PENSIONS or ILO/HEALTH. Ask the user to clarify before proceeding. Do not search any manual until the correct one is confirmed.";
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.OPENAI_ASSISTANT_ID) {
-      return NextResponse.json(
-        { error: "Missing OPENAI_ASSISTANT_ID" },
-        { status: 500 }
-      );
-    }
-
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: "Missing OPENAI_API_KEY" },
@@ -58,11 +34,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const assistantId = process.env.OPENAI_ASSISTANT_ID;
-
-    await ensureAssistantReady(assistantId);
-
-    const { threadId: existingThreadId, message, model } = await req.json();
+    const { threadId: previousResponseId, message, model } = await req.json();
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -71,14 +43,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let threadId = existingThreadId as string | undefined;
-
-    if (!threadId) {
-      const thread = await openai.beta.threads.create();
-      threadId = thread.id;
-    }
-
-    // Determine manual from frontend model selection or message text
+    const openai = await createOpenAIClient();
     const manualFromModel = inferManualFromModel(model);
     const manualFromMessage = inferManualFromText(message);
     let pendingQuestion: string | null = null;
@@ -88,83 +53,90 @@ export async function POST(req: NextRequest) {
     console.log("Manual from message:", manualFromMessage);
 
     // Check if user is trying to switch manuals mid-conversation
-    const existingManual = threadManualMemory.get(threadId);
-    if (existingManual && manualFromMessage && manualFromMessage !== existingManual) {
-      // User is asking about a different manual than the conversation is locked to
-      const currentManualName = existingManual === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
-      const requestedManualName = manualFromMessage === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
-      
-      return NextResponse.json({
-        threadId,
-        reply: `This conversation is currently using the ${currentManualName} manual. To ask questions about ${requestedManualName}, please start a new conversation and select the appropriate tool.`,
-        detectedManual: existingManual,
-      });
+    if (previousResponseId) {
+      const existingManual = conversationManualMemory.get(previousResponseId);
+      if (existingManual && manualFromMessage && manualFromMessage !== existingManual) {
+        const currentManualName = existingManual === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+        const requestedManualName = manualFromMessage === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+        return NextResponse.json({
+          threadId: previousResponseId,
+          reply: `This conversation is currently using the ${currentManualName} manual. To ask questions about ${requestedManualName}, please start a new conversation and select the appropriate tool.`,
+          detectedManual: existingManual,
+        });
+      }
     }
 
-    // Priority: explicit model selection > message inference > thread memory
+    // Priority: explicit model selection > message inference
     const determinedManual = manualFromModel ?? manualFromMessage;
 
-    if (determinedManual) {
-      threadManualMemory.set(threadId, determinedManual);
-
-      // Check if this is just a clarification (e.g., "pensions") and we have a pending question
+    if (determinedManual && previousResponseId) {
+      conversationManualMemory.set(previousResponseId, determinedManual);
       if (isManualClarificationOnly(message)) {
-        pendingQuestion = threadPendingQuestion.get(threadId) ?? null;
+        pendingQuestion = conversationPendingQuestion.get(previousResponseId) ?? null;
       }
-      // Clear pending question once manual is known
-      threadPendingQuestion.delete(threadId);
+      conversationPendingQuestion.delete(previousResponseId);
     }
 
     const manualForRun =
-      determinedManual ?? threadManualMemory.get(threadId) ?? null;
+      determinedManual ??
+      (previousResponseId ? conversationManualMemory.get(previousResponseId) : null) ??
+      null;
 
     console.log("Final manual for run:", manualForRun);
 
-    // If no manual could be determined, store this message as a pending question
-    if (!manualForRun) {
-      threadPendingQuestion.set(threadId, message);
+    if (!manualForRun && previousResponseId) {
+      conversationPendingQuestion.set(previousResponseId, message);
     }
 
-    await openai.beta.threads.messages.create(threadId, {
-      role: "user",
-      content: message,
+    // Build per-call instructions
+    const additionalInstructions = manualForRun
+      ? buildManualInstruction(manualForRun, pendingQuestion)
+      : manualSelectionPrompt;
+    const fullInstructions = `${assistantConfig.instructions}\n\n${additionalInstructions}`;
+
+    // Use built-in file_search when manual is known; no tool when awaiting clarification
+    const tools: OpenAI.Responses.Tool[] = manualForRun
+      ? [{ type: "file_search", vector_store_ids: [vectorStoreIds[manualForRun]] }]
+      : [];
+
+    const response = await openai.responses.create({
+      model: assistantConfig.model,
+      instructions: fullInstructions,
+      input: message,
+      ...(previousResponseId && { previous_response_id: previousResponseId }),
+      tools,
+      temperature: assistantConfig.temperature,
+      top_p: assistantConfig.top_p,
     });
 
-    const run = await createRun(threadId, assistantId, manualForRun, pendingQuestion);
+    const newResponseId = response.id;
 
-    if (run.status !== "completed") {
-      const errorMessage =
-        run.last_error?.message || `Run did not complete. Status: ${run.status}`;
-      return NextResponse.json({ error: errorMessage }, { status: 500 });
+    // Transfer conversation state to the new response ID
+    if (previousResponseId) {
+      if (manualForRun) {
+        conversationManualMemory.set(newResponseId, manualForRun);
+        conversationManualMemory.delete(previousResponseId);
+      }
+      const pending = conversationPendingQuestion.get(previousResponseId);
+      if (pending) {
+        conversationPendingQuestion.set(newResponseId, pending);
+        conversationPendingQuestion.delete(previousResponseId);
+      }
+    } else if (determinedManual) {
+      conversationManualMemory.set(newResponseId, determinedManual);
     }
 
-    const messages = await openai.beta.threads.messages.list(threadId, {
-      limit: 10,
-      order: "desc",
-    });
-
-    const assistantMessage = messages.data.find(
-      (messageEntry) =>
-        messageEntry.role === "assistant" &&
-        ("run_id" in messageEntry ? messageEntry.run_id === run.id : true)
-    );
-
-    if (!assistantMessage) {
-      return NextResponse.json(
-        { error: "No assistant message found" },
-        { status: 500 }
-      );
-    }
-
-    const textParts = assistantMessage.content
-      .filter(
-        (part): part is OpenAI.Beta.Threads.MessageContent.Text => part.type === "text"
-      )
-      .map((part) => part.text?.value ?? "");
+    // Extract text content from response
+    const text =
+      response.output
+        .find((o): o is OpenAI.Responses.ResponseOutputMessage => o.type === "message")
+        ?.content.find(
+          (c): c is OpenAI.Responses.ResponseOutputText => c.type === "output_text"
+        )?.text ?? "";
 
     return NextResponse.json({
-      threadId,
-      reply: textParts.join("\n\n"),
+      threadId: newResponseId,
+      reply: text,
       detectedManual: manualForRun,
     });
   } catch (err: unknown) {
@@ -183,86 +155,17 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function createRun(
-  threadId: string,
-  assistantId: string,
-  manual: ManualKey | null,
-  pendingQuestion: string | null = null
-) {
-  const additionalInstructions = manual
-    ? buildManualInstruction(manual, pendingQuestion)
-    : manualSelectionPrompt;
-
-  const runPayload: OpenAI.Beta.Threads.Runs.RunCreateParams = {
-    assistant_id: assistantId,
-    additional_instructions: additionalInstructions,
-  };
-
-  if (manual) {
-    const actionName = manualToAction(manual);
-    runPayload.tool_choice = {
-      type: "function",
-      function: { name: actionName },
-    } as const;
-    runPayload.tools = assistantConfig.tools?.map((tool) => ({ ...tool }));
-  }
-
-  let run = await openai.beta.threads.runs.create(threadId, runPayload);
-
-  while (!TERMINAL_STATUSES.has(run.status)) {
-
-    if (run.status === "requires_action") {
-      run = await fulfillRequiredActions(threadId, run);
-      continue;
-    }
-
-    await delay(750);
-    run = await openai.beta.threads.runs.retrieve(threadId, run.id);
-  }
-
-  return run;
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function resolveAssistantSyncMode(value?: string | null): AssistantSyncMode {
-  return value === "auto" ? "auto" : "manual";
-}
-
 function inferManualFromModel(model?: string): ManualKey | null {
   if (!model || model === "AUTO") return null;
-  
   const normalizedModel = model.toUpperCase();
   if (normalizedModel.includes("PENSION")) return "pensions";
   if (normalizedModel.includes("HEALTH")) return "health";
-  
   return null;
 }
 
-type ManualKey = keyof typeof vectorStoreIds;
-type ManualActionName = keyof typeof manualActionMap;
-function manualToAction(manual: ManualKey): ManualActionName {
-  return manual === "pensions" ? "searchPensionsManual" : "searchHealthManual";
-}
-type VectorSearchCacheEntry = {
-  expiresAt: number;
-  payload: unknown;
-};
-type VectorStoreError = Error & { status?: number };
-
 function inferManualFromText(text: string): ManualKey | null {
-  const normalized = text.toLowerCase();
-
-  if (/(ilo\/?health|health manual|\bhealth\b)/i.test(normalized)) {
-    return "health";
-  }
-
-  if (/(ilo\/?pensions?|pension manual|\bpensions?\b)/i.test(normalized)) {
-    return "pensions";
-  }
-
+  if (/(ilo\/?health|health manual|\bhealth\b)/i.test(text)) return "health";
+  if (/(ilo\/?pensions?|pension manual|\bpensions?\b)/i.test(text)) return "pensions";
   return null;
 }
 
@@ -276,195 +179,14 @@ function isManualClarificationOnly(text: string): boolean {
   return clarificationPatterns.some((pattern) => pattern.test(stripped));
 }
 
-async function ensureAssistantReady(assistantId: string) {
-  if (assistantSyncMode === "manual") {
-    if (!manualSyncModeLogged) {
-      console.info(
-        "OPENAI_ASSISTANT_SYNC_MODE=manual — skipping assistant auto-sync."
-      );
-      manualSyncModeLogged = true;
-    }
-    return;
-  }
-
-  if (!assistantSetupPromise) {
-    assistantSetupPromise = ensureAssistantConfiguration({
-      openai,
-      assistantId,
-      mode: assistantSyncMode,
-    })
-      .then(() => undefined)
-      .catch((error) => {
-        assistantSetupPromise = null;
-        throw error;
-      });
-  }
-
-  await assistantSetupPromise;
-}
-
 function buildManualInstruction(manual: ManualKey, pendingQuestion: string | null = null) {
-  const isPensions = manual === "pensions";
-  const manualLabel = isPensions ? "ILO/PENSIONS" : "ILO/HEALTH";
-  const actionName = manualToAction(manual);
-
-  let instruction = `The backend classified this conversation as ${manualLabel}. Call ${actionName} with a precise query before composing your reply, and base the response strictly on the returned chunks.`;
+  const manualLabel = manual === "pensions" ? "ILO/PENSIONS" : "ILO/HEALTH";
+  let instruction = `The backend classified this conversation as ${manualLabel}. Use the file search tool to retrieve relevant content from the manual before composing your reply. Base the response strictly on the retrieved content.`;
 
   if (pendingQuestion) {
-    instruction += `\n\nIMPORTANT: The user's last message was just clarifying which manual to use. Their original question was: "${pendingQuestion}"\nUse the ORIGINAL QUESTION (not just the manual name) to form your search query.`;
+    instruction += `\n\nIMPORTANT: The user's last message was just clarifying which manual to use. Their original question was: "${pendingQuestion}"\nSearch using the ORIGINAL QUESTION (not just the manual name).`;
   }
 
   return instruction;
 }
 
-async function fulfillRequiredActions(
-  threadId: string,
-  run: OpenAI.Beta.Threads.Run
-) {
-  const submitBlock = run.required_action?.submit_tool_outputs;
-
-  if (!submitBlock || !submitBlock.tool_calls?.length) {
-    throw new Error("Assistant requested tool outputs but none were provided.");
-  }
-
-  const toolOutputs = await Promise.all(
-    submitBlock.tool_calls.map(async (toolCall) => {
-      if (toolCall.type !== "function") {
-        throw new Error(`Unsupported tool call type: ${toolCall.type}`);
-      }
-
-      const output = await resolveManualToolCall(
-        toolCall.function.name,
-        toolCall.function.arguments ?? "{}"
-      );
-
-      return {
-        tool_call_id: toolCall.id,
-        output,
-      };
-    })
-  );
-
-  return openai.beta.threads.runs.submitToolOutputs(threadId, run.id, {
-    tool_outputs: toolOutputs,
-  });
-}
-
-async function resolveManualToolCall(functionName: string, rawArgs: string) {
-  if (!isManualActionName(functionName)) {
-    throw new Error(`Unsupported function call: ${functionName}`);
-  }
-
-  const args = parseToolArguments(rawArgs);
-  const query = typeof args.query === "string" ? args.query.trim() : "";
-
-  if (!query) {
-    throw new Error(`${functionName} requires a non-empty 'query' string.`);
-  }
-
-  const manualKey = manualActionMap[functionName];
-  const result = await callVectorStoreSearch(manualKey, query);
-  return JSON.stringify(result);
-}
-
-function isManualActionName(name: string): name is ManualActionName {
-  return name in manualActionMap;
-}
-
-function parseToolArguments(rawArgs: string) {
-  if (!rawArgs || !rawArgs.trim()) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(rawArgs);
-  } catch (error) {
-    throw new Error(`Invalid tool arguments JSON: ${String(error)}`);
-  }
-}
-
-async function callVectorStoreSearch(manualKey: ManualKey, query: string) {
-  const normalizedQuery = normalizeQueryKey(query);
-  const cacheKey = buildCacheKey(manualKey, normalizedQuery);
-  const cached = vectorSearchCache.get(cacheKey);
-
-  if (cached && cached.expiresAt > Date.now()) {
-    console.info("[vector-search] cache hit", {
-      manual: manualKey,
-      query: normalizedQuery,
-    });
-    return cached.payload;
-  }
-
-  const vectorStoreId = vectorStoreIds[manualKey];
-  let attempt = 0;
-  let backoffDelay = VECTOR_SEARCH_BASE_DELAY_MS;
-  let lastError: Error | null = null;
-
-  while (attempt < VECTOR_SEARCH_MAX_ATTEMPTS) {
-    attempt += 1;
-
-    try {
-      const payload = await executeVectorStoreFetch(vectorStoreId, query);
-
-      vectorSearchCache.set(cacheKey, {
-        payload,
-        expiresAt: Date.now() + VECTOR_SEARCH_CACHE_TTL_MS,
-      });
-
-      console.info("[vector-search] success", {
-        manual: manualKey,
-        attempt,
-        cached: false,
-      });
-
-      return payload;
-    } catch (error) {
-      lastError = error as Error;
-      const retryable = isRetryableVectorError(lastError);
-
-      console.warn("[vector-search] failure", {
-        manual: manualKey,
-        attempt,
-        retryable,
-        message: lastError.message,
-      });
-
-      if (!retryable || attempt >= VECTOR_SEARCH_MAX_ATTEMPTS) {
-        throw lastError;
-      }
-
-      await delay(withJitter(backoffDelay));
-      backoffDelay *= 2;
-    }
-  }
-
-  throw lastError ?? new Error("Vector store search failed for unknown reasons.");
-}
-
-function buildCacheKey(manualKey: ManualKey, query: string) {
-  return `${manualKey}::${query}`;
-}
-
-async function executeVectorStoreFetch(vectorStoreId: string, query: string) {
-  return openai.vectorStores.search(vectorStoreId, { query });
-}
-
-function isRetryableVectorError(error: Error) {
-  const status = (error as VectorStoreError).status;
-
-  if (typeof status === "number") {
-    return status === 429 || (status >= 500 && status < 600);
-  }
-
-  return error instanceof TypeError;
-}
-
-function withJitter(delayMs: number) {
-  const jitter = Math.random() * 0.3 * delayMs;
-  return Math.round(delayMs + jitter);
-}
-
-function normalizeQueryKey(query: string) {
-  return query.trim().replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").toLowerCase();
-}

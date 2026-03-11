@@ -11,20 +11,16 @@ export const vectorStoreIds = {
 } as const;
 
 export const assistantConfig = {
-  name: "QPSS Knowledge Assistant",
-  description: "Guides QPSS users through ILO/PENSIONS and ILO/HEALTH manuals.",
-  model: "gpt-4.1-mini",
+  model: "gpt-5.2",
   instructions: `
   You are a technical support assistant for the actuarial valuation platforms ILO/PENSIONS and ILO/HEALTH.
-  Your role is to provide guidance and solutions strictly based on the official User Manuals that live in two OpenAI vector stores. You can reach the manuals only through the following custom Actions:
-   • searchPensionsManual - queries the ILO/PENSIONS User Manual (vector store vs_68df753c6f8c819199f785d76313f15a)
-   • searchHealthManual - queries the ILO/HEALTH User Manual (vector store vs_68df753edaf0819185c0e8f7c823b02a)
+  Your role is to provide guidance and solutions strictly based on the official User Manuals. You have access to a file search tool that retrieves relevant sections from the appropriate manual.
 
   Rules for responses:
 
-  1. Always begin by making sure you understand which tool (ILO/PENSIONS or ILO/HEALTH) the user's question concerns. If the tool can be determined from the user's question (e.g., by keywords like "PENSIONS", "pension", "HEALTH", or "health"), proceed without asking. If unclear, ask for clarification before calling any Action.
+  1. Always begin by making sure you understand which tool (ILO/PENSIONS or ILO/HEALTH) the user's question concerns. If the tool can be determined from the user's question (e.g., by keywords like "PENSIONS", "pension", "HEALTH", or "health"), proceed without asking. If unclear, ask for clarification before searching.
 
-  2. Once the tool is clear, invoke the matching Action before answering. Keep search queries concise and keyword-rich. Compose answers only from the retrieved chunks. Do not rely on prior knowledge or memory.
+  2. Once the tool is clear, use the file search tool to retrieve relevant sections before answering. Keep search queries concise and keyword-rich. Compose answers only from the retrieved content. Do not rely on prior knowledge or memory.
 
   3. Every answer must cite exactly once per referenced chunk using metadata.doc_title (for example: ILO-PENSIONS User Manual or ILO-HEALTH User Manual) and metadata.anchor_breadcrumb (for example: Working in ILO/PENSIONS  Manipulation of matrices  Exporting commands: Exp.CSV and To XLSX). Format the citation as **Source:** metadata.doc_title — metadata.anchor_breadcrumb immediately after the quoted or summarized passage. Do not restate the same citation again elsewhere in the reply and do not include any other metadata fields.
 
@@ -57,50 +53,5 @@ export const assistantConfig = {
   `.trim(),
   temperature: 0,
   top_p: 0.8,
-  response_format: { type: "text" as const },
-  metadata: {
-    product: "QPSS",
-    surface: "chatbot-frontend",
-  },
-  tools: [
-    {
-      type: "function" as const,
-      function: {
-        name: "searchPensionsManual",
-        description:
-          "Searches the ILO/PENSIONS User Manual vector store for the most relevant chunks to the supplied query.",
-        parameters: {
-          type: "object",
-          additionalProperties: false,
-          required: ["query"],
-          properties: {
-            query: {
-              type: "string",
-              description: "User question or keyword string to match against the PENSIONS manual.",
-            },
-          },
-        },
-      },
-    },
-    {
-      type: "function" as const,
-      function: {
-        name: "searchHealthManual",
-        description:
-          "Searches the ILO/HEALTH User Manual vector store for the most relevant chunks to the supplied query.",
-        parameters: {
-          type: "object",
-          additionalProperties: false,
-          required: ["query"],
-          properties: {
-            query: {
-              type: "string",
-              description: "User question or keyword string to match against the HEALTH manual.",
-            },
-          },
-        },
-      },
-    },
-  ],
 } as const;
 
