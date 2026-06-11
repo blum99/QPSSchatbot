@@ -3,6 +3,10 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { vectorStoreIds, assistantConfig } from "@/config/assistant";
 
+// Allow the function to run long enough for file_search + generation.
+// Hobby plan max is 60s; Pro/Enterprise allow up to 300.
+export const maxDuration = 60;
+
 const proxyUrl = process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY;
 
 async function createOpenAIClient() {
@@ -158,6 +162,20 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("Error in /api/chat:", err);
+
+    // Surface OpenAI API errors with their real HTTP status and error code so
+    // the frontend can show a specific, actionable message (quota, rate limit,
+    // auth, etc.) instead of a generic fallback.
+    if (err instanceof OpenAI.APIError) {
+      return NextResponse.json(
+        {
+          error: err.message,
+          code: err.code ?? err.type ?? null,
+        },
+        { status: err.status ?? 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         error:
@@ -166,6 +184,7 @@ export async function POST(req: NextRequest) {
             : typeof err === "object" && err !== null && "message" in err
             ? String((err as { message?: unknown }).message)
             : "Internal server error",
+        code: null,
       },
       { status: 500 }
     );

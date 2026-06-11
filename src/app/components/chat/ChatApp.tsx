@@ -25,6 +25,40 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+// Map backend/OpenAI error codes and HTTP statuses to clear, user-facing text.
+// `code` comes from the API route (OpenAI error code/type); `status` is the
+// HTTP status; `rawText` is the original error message used as a fallback.
+function getFriendlyErrorText(code: string, status: number | undefined, rawText: string): string {
+  // Billing / quota exhausted — not a transient issue; needs account action.
+  if (code === "insufficient_quota") {
+    return "⚠️ The assistant is temporarily unavailable due to a billing/quota issue on the service. Please contact the administrator.";
+  }
+
+  // Per-minute rate limit — transient; suggest waiting.
+  if (code === "rate_limit_exceeded" || /rate.?limit/i.test(rawText)) {
+    const match = rawText.match(/try again in ([\d.]+)s/i);
+    const waitTime = match && match[1] ? `${Math.ceil(parseFloat(match[1]))} seconds` : "a few seconds";
+    return `⏱️ Too many requests right now. Please wait ${waitTime} before sending another message.`;
+  }
+
+  // Authentication / key problems.
+  if (code === "invalid_api_key" || status === 401) {
+    return "⚠️ The assistant is misconfigured (authentication failed). Please contact the administrator.";
+  }
+
+  // Function/gateway timeout.
+  if (status === 504) {
+    return "⏱️ The response took too long and timed out. Please try again, ideally with a shorter question.";
+  }
+
+  // Server errors.
+  if (status !== undefined && status >= 500) {
+    return "Sorry, the assistant ran into a server error. Please try again in a moment.";
+  }
+
+  return "Sorry, I encountered an error. Please try again.";
+}
+
 const initialMessages: Message[] = [
   {
     id: "1",
@@ -265,6 +299,7 @@ export function ChatApp() {
         threadId?: string;
         reply?: string;
         error?: string;
+        code?: string | null;
         detectedManual?: string;
       };
 
@@ -274,7 +309,13 @@ export function ChatApp() {
       console.log("Detected manual:", data.detectedManual);
 
       if (!response.ok) {
-        throw new Error(data?.error || "Assistant response failed");
+        const err = new Error(data?.error || "Assistant response failed") as Error & {
+          code?: string | null;
+          status?: number;
+        };
+        err.code = data?.code ?? null;
+        err.status = response.status;
+        throw err;
       }
 
       // If AUTO mode detected a manual, lock the conversation to that manual
@@ -333,25 +374,19 @@ export function ChatApp() {
     } catch (error) {
       console.error("Error sending message:", error);
 
-      // Check if it's a rate limit error and extract wait time
       const errorText = error instanceof Error ? error.message : String(error);
-      const isRateLimit = errorText.includes("Rate limit") || errorText.includes("rate_limit");
-
-      let waitTime = "10-15 seconds";
-      if (isRateLimit) {
-        // Try to extract precise wait time from error message
-        const match = errorText.match(/try again in ([\d.]+)s/i);
-        if (match && match[1]) {
-          const seconds = Math.ceil(parseFloat(match[1]));
-          waitTime = `${seconds} seconds`;
-        }
-      }
+      const errorCode =
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code ?? "")
+          : "";
+      const errorStatus =
+        error && typeof error === "object" && "status" in error
+          ? Number((error as { status?: unknown }).status)
+          : undefined;
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: isRateLimit
-          ? `⏱️ Rate limit reached. Please wait ${waitTime} before sending another message.`
-          : "Sorry, I encountered an error. Please try again.",
+        text: getFriendlyErrorText(errorCode, errorStatus, errorText),
         sender: "bot",
         timestamp: new Date(),
       };
